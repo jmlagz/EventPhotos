@@ -49,4 +49,10 @@ urlpatterns = [
         views.album_publico,
         name="album_publico",
     ),
+
+    path(
+        "fotos/<slug:slug>/foto/<int:foto_id>/eliminar/",
+        views.eliminar_foto,
+        name="eliminar_foto",
+    ),
 ]

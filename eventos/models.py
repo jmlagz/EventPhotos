@@ -148,6 +148,12 @@ class Mesa(models.Model):
         ]
 
 class Foto(models.Model):
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "pending", "Pendiente"
+        APROBADA = "approved", "Aprobada"
+        RECHAZADA = "rejected", "Rechazada"
+
     evento = models.ForeignKey(
         Evento,
         on_delete=models.CASCADE,
@@ -178,6 +184,24 @@ class Foto(models.Model):
         max_length=64,
     )
 
+    # Identifica de forma anónima al navegador que subió la foto.
+    # No guardamos el token original, solamente su hash.
+    uploader_hash = models.CharField(
+        max_length=64,
+        blank=True,
+    )
+
+    estado = models.CharField(
+        max_length=20,
+        choices=Estado.choices,
+        default=Estado.APROBADA,
+    )
+
+    eliminada_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     creada_en = models.DateTimeField(
         auto_now_add=True,
     )
@@ -193,4 +217,4 @@ class Foto(models.Model):
                 fields=["evento", "hash_sha256"],
                 name="unique_foto_por_evento",
             )
-        ]        
+        ]

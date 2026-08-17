@@ -1,11 +1,30 @@
+import hashlib
+import secrets
+
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django.conf import settings
 
-from .r2 import generar_url_lectura, generar_url_subida
+from .r2 import (
+    get_r2_client,
+    generar_url_lectura,
+    generar_url_subida,
+)
 
 from .models import Evento, Mesa, Foto
 
+def obtener_uploader_hash(request):
+    uploader_token = request.session.get("uploader_token")
+
+    if not uploader_token:
+        uploader_token = secrets.token_urlsafe(32)
+        request.session["uploader_token"] = uploader_token
+
+    return hashlib.sha256(
+        uploader_token.encode("utf-8")
+    ).hexdigest()
 
 def evento_publico(request, slug):
     evento = get_object_or_404(
@@ -386,6 +405,8 @@ def confirmar_subida(request, slug, token):
             }
         )
 
+    uploader_hash = obtener_uploader_hash(request)
+
     foto = Foto.objects.create(
         evento=evento,
         mesa=mesa,
@@ -394,13 +415,71 @@ def confirmar_subida(request, slug, token):
         content_type=content_type,
         tamaño=int(tamaño),
         hash_sha256=hash_sha256,
-    )
+        uploader_hash=uploader_hash,
+        estado=Foto.Estado.APROBADA,
+    )   
 
     return JsonResponse(
         {
             "ok": True,
             "foto_id": foto.id,
             "mensaje": "Foto registrada correctamente.",
+        }
+    )
+
+@require_POST
+def eliminar_foto(request, slug, foto_id):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
+    foto = get_object_or_404(
+        Foto,
+        id=foto_id,
+        evento=evento,
+        eliminada_at__isnull=True,
+    )
+
+    uploader_hash = obtener_uploader_hash(request)
+
+    if foto.uploader_hash != uploader_hash:
+        return JsonResponse(
+            {
+                "error": "No tienes permiso para eliminar esta foto."
+            },
+            status=403,
+        )
+
+    try:
+        r2 = get_r2_client()
+
+        r2.delete_object(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=foto.object_key,
+        )
+
+    except Exception:
+        return JsonResponse(
+            {
+                "error": "No fue posible eliminar la foto de almacenamiento."
+            },
+            status=500,
+        )
+
+    foto.eliminada_at = timezone.now()
+    foto.save(
+        update_fields=["eliminada_at"],
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "mensaje": "Foto eliminada correctamente.",
         }
     )
 
@@ -416,9 +495,12 @@ def album_publico(request, slug):
 
     fotos = Foto.objects.filter(
         evento=evento,
+        eliminada_at__isnull=True,
     ).select_related(
         "mesa",
     )
+
+    uploader_hash = obtener_uploader_hash(request)
 
     fotos_album = []
 
@@ -429,6 +511,9 @@ def album_publico(request, slug):
                 "url": generar_url_lectura(
                     foto.object_key
                 ),
+                        "puede_eliminar": (
+                            foto.uploader_hash == uploader_hash
+                        ),
             }
         )
 

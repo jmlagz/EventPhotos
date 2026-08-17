@@ -53,11 +53,8 @@
         <p>{{ evento.mensaje_bienvenida }}</p>
     {% endif %}
 
-    <a href="#" class="boton">
-        📸 Subir fotos
-    </a>
-
-    <a href="#" class="boton">
+    
+    <a href="{% url 'album_publico' slug=evento.slug %}" class="boton">
         🖼️ Ver álbum
     </a>
 
