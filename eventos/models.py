@@ -146,3 +146,51 @@ class Mesa(models.Model):
                 name="unique_mesa_por_evento",
             )
         ]
+
+class Foto(models.Model):
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name="fotos",
+    )
+
+    mesa = models.ForeignKey(
+        Mesa,
+        on_delete=models.CASCADE,
+        related_name="fotos",
+    )
+
+    object_key = models.CharField(
+        max_length=500,
+    )
+
+    nombre_original = models.CharField(
+        max_length=255,
+    )
+
+    content_type = models.CharField(
+        max_length=100,
+    )
+
+    tamaño = models.PositiveBigIntegerField()
+
+    hash_sha256 = models.CharField(
+        max_length=64,
+    )
+
+    creada_en = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    def __str__(self):
+        return self.nombre_original
+
+    class Meta:
+        ordering = ["-creada_en"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["evento", "hash_sha256"],
+                name="unique_foto_por_evento",
+            )
+        ]        

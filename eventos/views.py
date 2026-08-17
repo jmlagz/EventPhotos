@@ -4,7 +4,7 @@ from django.views.decorators.http import require_POST
 
 from .r2 import generar_url_subida
 
-from .models import Evento, Mesa
+from .models import Evento, Mesa, Foto
 
 
 def evento_publico(request, slug):
@@ -256,10 +256,17 @@ def solicitar_url_subida(request, slug, token):
 
     nombre = request.POST.get("nombre", "").strip()
     content_type = request.POST.get("content_type", "").strip()
+    hash_sha256 = request.POST.get("hash_sha256", "").strip()
 
-    if not nombre or not content_type:
+    if not nombre or not content_type or not hash_sha256:
         return JsonResponse(
             {"error": "Faltan datos de la foto."},
+            status=400,
+        )
+
+    if len(hash_sha256) != 64:
+        return JsonResponse(
+            {"error": "Hash SHA-256 inválido."},
             status=400,
         )
 
@@ -282,6 +289,17 @@ def solicitar_url_subida(request, slug, token):
 
     extension = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else "jpg"
 
+    if Foto.objects.filter(
+        evento=evento,
+        hash_sha256=hash_sha256,
+    ).exists():
+        return JsonResponse(
+            {
+                "duplicada": True,
+                "mensaje": "Esta foto ya fue compartida en este evento.",
+            }
+        )
+
     object_key = (
         f"eventos/{evento.slug}/"
         f"mesas/{mesa.token}/"
@@ -303,5 +321,85 @@ def solicitar_url_subida(request, slug, token):
         {
             "url": url,
             "object_key": object_key,
+        }
+    )
+
+@require_POST
+def confirmar_subida(request, slug, token):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
+    mesa = get_object_or_404(
+        Mesa,
+        evento=evento,
+        token=token,
+        activa=True,
+    )
+
+    if request.session.get("mesa_id") != mesa.id:
+        return JsonResponse(
+            {"error": "No autorizado."},
+            status=403,
+        )
+
+    if not request.session.get("instrucciones_aceptadas"):
+        return JsonResponse(
+            {"error": "Debes aceptar las instrucciones."},
+            status=403,
+        )
+
+    object_key = request.POST.get("object_key", "").strip()
+    nombre = request.POST.get("nombre", "").strip()
+    content_type = request.POST.get("content_type", "").strip()
+    hash_sha256 = request.POST.get("hash_sha256", "").strip()
+    tamaño = request.POST.get("tamaño", "").strip()
+
+    if not all([
+        object_key,
+        nombre,
+        content_type,
+        hash_sha256,
+        tamaño,
+    ]):
+        return JsonResponse(
+            {"error": "Faltan datos para registrar la foto."},
+            status=400,
+        )
+
+    # Segunda comprobación contra duplicados.
+    foto_existente = Foto.objects.filter(
+        evento=evento,
+        hash_sha256=hash_sha256,
+    ).first()
+
+    if foto_existente:
+        return JsonResponse(
+            {
+                "duplicada": True,
+                "mensaje": "Esta foto ya fue compartida en este evento.",
+            }
+        )
+
+    foto = Foto.objects.create(
+        evento=evento,
+        mesa=mesa,
+        object_key=object_key,
+        nombre_original=nombre,
+        content_type=content_type,
+        tamaño=int(tamaño),
+        hash_sha256=hash_sha256,
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "foto_id": foto.id,
+            "mensaje": "Foto registrada correctamente.",
         }
     )

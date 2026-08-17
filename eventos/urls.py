@@ -33,8 +33,14 @@ urlpatterns = [
     ),
 
     path(
-    "fotos/<slug:slug>/t/<str:token>/solicitar-url-subida/",
-    views.solicitar_url_subida,
-    name="solicitar_url_subida",
+        "fotos/<slug:slug>/t/<str:token>/solicitar-url-subida/",
+        views.solicitar_url_subida,
+        name="solicitar_url_subida",
+    ),
+
+    path(
+        "fotos/<slug:slug>/t/<str:token>/confirmar-subida/",
+        views.confirmar_subida,
+        name="confirmar_subida",
     ),
 ]

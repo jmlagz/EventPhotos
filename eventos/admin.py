@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Evento, Mesa
+from .models import Evento, Mesa, Foto
 
 
 @admin.register(Evento)
@@ -67,3 +67,41 @@ class MesaAdmin(admin.ModelAdmin):
         "codigo_acceso",
         "created_at",
     )
+
+@admin.register(Foto)
+class FotoAdmin(admin.ModelAdmin):
+    list_display = (
+        "nombre_original",
+        "evento",
+        "mesa",
+        "content_type",
+        "tamaño",
+        "creada_en",
+    )
+
+    list_filter = (
+        "evento",
+        "mesa",
+        "content_type",
+    )
+
+    search_fields = (
+        "nombre_original",
+        "object_key",
+        "hash_sha256",
+    )
+
+    readonly_fields = (
+        "evento",
+        "mesa",
+        "object_key",
+        "nombre_original",
+        "content_type",
+        "tamaño",
+        "hash_sha256",
+        "creada_en",
+    )
+
+    ordering = (
+        "-creada_en",
+    )    
