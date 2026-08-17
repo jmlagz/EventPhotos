@@ -43,4 +43,10 @@ urlpatterns = [
         views.confirmar_subida,
         name="confirmar_subida",
     ),
+
+    path(
+        "fotos/<slug:slug>/album/",
+        views.album_publico,
+        name="album_publico",
+    ),
 ]

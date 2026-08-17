@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from .r2 import generar_url_subida
+from .r2 import generar_url_lectura, generar_url_subida
 
 from .models import Evento, Mesa, Foto
 
@@ -402,4 +402,41 @@ def confirmar_subida(request, slug, token):
             "foto_id": foto.id,
             "mensaje": "Foto registrada correctamente.",
         }
+    )
+
+def album_publico(request, slug):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
+    fotos = Foto.objects.filter(
+        evento=evento,
+    ).select_related(
+        "mesa",
+    )
+
+    fotos_album = []
+
+    for foto in fotos:
+        fotos_album.append(
+            {
+                "foto": foto,
+                "url": generar_url_lectura(
+                    foto.object_key
+                ),
+            }
+        )
+
+    return render(
+        request,
+        "eventos/album_publico.html",
+        {
+            "evento": evento,
+            "fotos": fotos_album,
+        },
     )

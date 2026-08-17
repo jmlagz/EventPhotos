@@ -24,3 +24,15 @@ def generar_url_subida(object_key, content_type):
         },
         ExpiresIn=300,
     )
+
+def generar_url_lectura(object_key):
+    r2 = get_r2_client()
+
+    return r2.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.R2_BUCKET_NAME,
+            "Key": object_key,
+        },
+        ExpiresIn=3600,
+    )

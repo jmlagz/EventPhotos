@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Álbum - {{ evento.nombre }}</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 25px 15px;
+            background: #f7f7f7;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .contador {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .galeria {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .foto {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #ddd;
+        }
+
+        @media (min-width: 700px) {
+            .galeria {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📸 {{ evento.nombre }}</h1>
+
+    <div class="contador">
+        {{ fotos|length }} foto(s)
+    </div>
+
+    <div class="galeria">
+
+        {% for item in fotos %}
+
+            <img
+                class="foto"
+                src="{{ item.url }}"
+                alt="{{ item.foto.nombre_original }}"
+                loading="lazy"
+            >
+
+        {% empty %}
+
+            <p>
+                Todavía no hay fotos compartidas.
+            </p>
+
+        {% endfor %}
+
+    </div>
+
+</body>
+</html>
