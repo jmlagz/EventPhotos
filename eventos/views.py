@@ -1,16 +1,22 @@
 import hashlib
 import secrets
+import io
+import qrcode
 
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.conf import settings
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 
 from .r2 import (
     get_r2_client,
     generar_url_lectura,
     generar_url_subida,
+    eliminar_objeto,
 )
 
 from .models import Evento, Mesa, Foto
@@ -25,6 +31,43 @@ def obtener_uploader_hash(request):
     return hashlib.sha256(
         uploader_token.encode("utf-8")
     ).hexdigest()
+
+def login_anfitrion(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+
+        usuario = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
+        if usuario is not None:
+            login(request, usuario)
+            return redirect("dashboard")
+
+        return render(
+            request,
+            "eventos/login.html",
+            {
+                "error": "Usuario o contraseña incorrectos.",
+            },
+        )
+
+    return render(
+        request,
+        "eventos/login.html",
+    )
+
+
+@login_required
+def logout_anfitrion(request):
+    logout(request)
+    return redirect("login_anfitrion")
 
 def evento_publico(request, slug):
     evento = get_object_or_404(
@@ -523,5 +566,359 @@ def album_publico(request, slug):
         {
             "evento": evento,
             "fotos": fotos_album,
+        },
+    )
+
+@login_required
+def dashboard(request):
+    eventos = eventos_del_usuario(request)
+
+    return render(
+        request,
+        "eventos/dashboard.html",
+        {
+            "eventos": eventos,
+        },
+    )
+
+@login_required
+def dashboard_evento(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    return render(
+        request,
+        "eventos/dashboard_evento.html",
+        {
+            "evento": evento,
+        },
+    )
+
+@login_required
+def fotos_dashboard(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    mesa_id = request.GET.get("mesa")
+
+    fotos = (
+        Foto.objects
+        .filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+        .select_related("mesa")
+        .order_by("-creada_en")
+    )
+
+    if mesa_id:
+        fotos = fotos.filter(mesa_id=mesa_id)
+
+    mesas = evento.mesas.filter(
+        activa=True,
+    ).order_by("numero")
+
+    fotos_con_url = []
+
+    for foto in fotos:
+        fotos_con_url.append(
+            {
+                "foto": foto,
+                "url": generar_url_lectura(
+                    foto.object_key,
+                ),
+            }
+        )
+
+    return render(
+        request,
+        "eventos/fotos_dashboard.html",
+        {
+            "evento": evento,
+            "fotos": fotos_con_url,
+            "mesas": mesas,
+            "mesa_seleccionada": mesa_id,
+        },
+    )
+
+@login_required
+def mesas_dashboard(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    mesas = evento.mesas.filter(
+        activa=True,
+    )
+
+    mesas_con_url = []
+
+    for mesa in mesas:
+        mesas_con_url.append(
+            {
+                "mesa": mesa,
+                "url": request.build_absolute_uri(
+                    f"/fotos/{evento.slug}/t/{mesa.token}/"
+                ),
+            }
+        )
+
+    return render(
+        request,
+        "eventos/mesas_dashboard.html",
+        {
+            "evento": evento,
+            "mesas": mesas_con_url,
+        },
+    )
+
+@login_required
+def configurar_mesas(request, slug):
+
+    if not request.user.is_superuser:
+        return get_object_or_404(
+            Evento,
+            slug="__acceso_denegado__",
+        )
+
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+    )
+
+    if request.method == "POST":
+
+        try:
+            numero_mesas = int(
+                request.POST.get("numero_mesas", 0)
+            )
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Número de mesas inválido.",
+                },
+                status=400,
+            )
+
+        mesas_actuales = evento.mesas.count()
+
+        if numero_mesas < mesas_actuales:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": (
+                        "No se puede reducir el número "
+                        "de mesas desde esta pantalla."
+                    ),
+                },
+                status=400,
+            )
+
+        if numero_mesas > 100:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": (
+                        "El máximo permitido es de 100 mesas."
+                    ),
+                },
+                status=400,
+            )
+
+        for numero in range(
+            mesas_actuales + 1,
+            numero_mesas + 1,
+        ):
+            Mesa.objects.create(
+                evento=evento,
+                numero=numero,
+            )
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "total_mesas": evento.mesas.count(),
+            }
+        )
+
+    mesas = evento.mesas.all()
+
+    return render(
+        request,
+        "eventos/configurar_mesas.html",
+        {
+            "evento": evento,
+            "mesas": mesas,
+        },
+    )
+
+@login_required
+def qr_mesa(request, slug, mesa_id):
+    if not request.user.is_superuser:
+        evento = obtener_evento_del_usuario(
+            request,
+            slug,
+        )
+    else:
+        evento = get_object_or_404(
+            Evento,
+            slug=slug,
+        )
+
+    mesa = get_object_or_404(
+        Mesa,
+        id=mesa_id,
+        evento=evento,
+        activa=True,
+    )
+
+    url = request.build_absolute_uri(
+        f"/fotos/{evento.slug}/t/{mesa.token}/"
+    )
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+
+    qr.add_data(url)
+    qr.make(fit=True)
+
+    imagen = qr.make_image(
+        fill_color="black",
+        back_color="white",
+    )
+
+    buffer = io.BytesIO()
+    imagen.save(buffer, format="PNG")
+
+    return HttpResponse(
+        buffer.getvalue(),
+        content_type="image/png",
+    )
+
+@login_required
+def imprimir_qr_mesa(request, slug, mesa_id):
+    if request.user.is_superuser:
+        evento = get_object_or_404(
+            Evento,
+            slug=slug,
+        )
+    else:
+        evento = obtener_evento_del_usuario(
+            request,
+            slug,
+        )
+
+    mesa = get_object_or_404(
+        Mesa,
+        id=mesa_id,
+        evento=evento,
+        activa=True,
+    )
+
+    url = request.build_absolute_uri(
+        mesa.url_acceso
+    )
+
+    return render(
+        request,
+        "eventos/qr_mesa_imprimir.html",
+        {
+            "evento": evento,
+            "mesa": mesa,
+            "url": url,
+        },
+    )
+
+@login_required
+@require_POST
+def actualizar_mesa(request, slug, mesa_id):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    mesa = get_object_or_404(
+        Mesa,
+        id=mesa_id,
+        evento=evento,
+    )
+
+    nombre = request.POST.get("nombre", "").strip()
+
+    mesa.nombre = nombre
+    mesa.save(update_fields=["nombre"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "nombre": mesa.nombre,
+        }
+    )
+
+@login_required
+@require_POST
+def eliminar_foto_dashboard(request, slug, foto_id):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    foto = get_object_or_404(
+        Foto,
+        id=foto_id,
+        evento=evento,
+        eliminada_at__isnull=True,
+    )
+
+    eliminar_objeto(foto.object_key)
+
+    foto.eliminada_at = timezone.now()
+    foto.save(update_fields=["eliminada_at"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+        }
+    )
+
+def eventos_del_usuario(request):
+    if request.user.is_superuser:
+        return Evento.objects.all()
+
+    return Evento.objects.filter(
+        propietario=request.user,
+    )
+
+def obtener_evento_del_usuario(request, slug):
+    if request.user.is_superuser:
+        return get_object_or_404(
+            Evento,
+            slug=slug,
+        )
+
+    return get_object_or_404(
+        Evento,
+        slug=slug,
+        propietario=request.user,
+    )
+
+@login_required
+def imprimir_qrs_mesas(request, slug):
+    if request.user.is_superuser:
+        evento = get_object_or_404(
+            Evento,
+            slug=slug,
+        )
+    else:
+        evento = obtener_evento_del_usuario(
+            request,
+            slug,
+        )
+
+    mesas = evento.mesas.filter(
+        activa=True,
+    )
+
+    return render(
+        request,
+        "eventos/qrs_mesas_imprimir.html",
+        {
+            "evento": evento,
+            "mesas": mesas,
         },
     )

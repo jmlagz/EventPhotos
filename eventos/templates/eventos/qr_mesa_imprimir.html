@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        QR - {{ mesa.etiqueta }}
+    </title>
+
+    <style>
+
+        @page {
+            size: 10cm 15cm;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #eeeeee;
+        }
+
+        .tarjeta {
+            width: 10cm;
+            height: 15cm;
+            margin: 20px auto;
+            padding: 0.7cm;
+
+            background: white;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .mesa-numero {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .mesa-nombre {
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .qr {
+            width: 6cm;
+            height: 6cm;
+            object-fit: contain;
+        }
+
+        .instruccion {
+            margin-top: 12px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .codigo-label {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .codigo {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            margin-top: 4px;
+        }
+
+        .footer {
+            margin-top: auto;
+            font-size: 9px;
+            color: #999;
+            line-height: 1.4;
+        }
+
+        .controles {
+            width: 100%;
+            text-align: center;
+            margin: 20px auto;
+        }
+
+        .boton {
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        @media print {
+
+            body {
+                background: white;
+            }
+
+            .tarjeta {
+                margin: 0;
+            }
+
+            .controles {
+                display: none;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="tarjeta">
+
+        <div class="mesa-numero">
+            MESA {{ mesa.numero }}
+        </div>
+
+        {% if mesa.nombre %}
+
+            <div class="mesa-nombre">
+                {{ mesa.nombre }}
+            </div>
+
+        {% endif %}
+
+
+        <img
+            src="{% url 'qr_mesa' slug=evento.slug mesa_id=mesa.id %}"
+            alt="Código QR de {{ mesa.etiqueta }}"
+            class="qr"
+        >
+
+
+        <div class="instruccion">
+            Escanea el código para compartir
+            tus fotos del evento 📸
+        </div>
+
+
+        <div class="codigo-label">
+            Código de acceso
+        </div>
+
+        <div class="codigo">
+            {{ mesa.codigo_acceso }}
+        </div>
+
+
+        <div class="footer">
+            EventPhotos · creado por LuisArt<br>
+            luisart@lotus-nest.com
+        </div>
+
+    </div>
+
+
+    <div class="controles">
+
+        <button
+            type="button"
+            class="boton"
+            onclick="window.print()"
+        >
+            🖨️ Imprimir
+        </button>
+
+    </div>
+
+</body>
+
+</html>

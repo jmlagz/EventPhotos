@@ -142,6 +142,10 @@ class Mesa(models.Model):
             return f"Mesa {self.numero} - {self.nombre}"
         return f"Mesa {self.numero}"
 
+    @property
+    def url_acceso(self):
+        return f"/fotos/{self.evento.slug}/t/{self.token}/"
+
     def __str__(self):
         return self.etiqueta
 

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>{{ evento.nombre }} - EventPhotos</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f7f7f7;
+        }
+
+        .encabezado {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .volver {
+            color: #555;
+            text-decoration: none;
+        }
+
+        .tarjetas {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .tarjeta {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .tarjeta .numero {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .seccion {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .boton {
+            display: inline-block;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            .tarjetas {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .botones {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="encabezado">
+
+        <div>
+            <h1>{{ evento.nombre }}</h1>
+
+            <p>
+                📅 {{ evento.fecha|date:"d/m/Y" }}
+            </p>
+        </div>
+
+        <a
+            href="{% url 'dashboard' %}"
+            class="volver"
+        >
+            ← Mis eventos
+        </a>
+
+    </div>
+
+
+    <div class="tarjetas">
+
+        <div class="tarjeta">
+
+            <div class="numero">
+                {{ evento.fotos.count }}
+            </div>
+
+            <div>
+                📸 Fotos
+            </div>
+
+        </div>
+
+
+        <div class="tarjeta">
+
+            <div class="numero">
+                {{ evento.mesas.count }}
+            </div>
+
+            <div>
+                🪑 Mesas
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="seccion">
+
+        <h2>📸 Fotos</h2>
+
+        <p>
+            Aquí podremos ver y administrar todas las
+            fotos de este evento.
+        </p>
+
+        <div class="botones">
+
+        <a
+            href="{% url 'fotos_dashboard' slug=evento.slug %}"
+            class="boton"
+        >
+            Ver fotos
+        </a>
+
+    
+
+        <a
+            href="{% url 'album_publico' slug=evento.slug %}"
+            class="boton"
+            target="_blank"
+        >
+            🌎 Ver álbum público
+        </a>
+        </div>
+
+    </div>
+
+
+    <div class="seccion">
+
+        <h2>🪑 Mesas</h2>
+
+        <p>
+            Aquí podrás ver los códigos de acceso,
+            enlaces y códigos QR de todas las mesas.
+        </p>
+
+        <a
+            href="{% url 'mesas_dashboard' slug=evento.slug %}"
+            class="boton"
+        >
+            Administrar mesas
+        </a>
+
+    </div>
+
+
+    <div class="seccion">
+
+        <h2>⚙️ Evento</h2>
+
+        <p>
+            Estado:
+            <strong>{{ evento.get_estado_display }}</strong>
+        </p>
+
+    </div>
+
+</body>
+</html>
