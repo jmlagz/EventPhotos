@@ -1,6 +1,7 @@
 import secrets
 import string
 
+from django.contrib.auth.models import User
 from django.db import models
 from django.utils.text import slugify
 
@@ -22,6 +23,12 @@ class Evento(models.Model):
 
     nombre = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
+
+    propietario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="eventos",
+    )
 
     tipo = models.CharField(
         max_length=30,
