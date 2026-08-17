@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>{{ evento.nombre }}</title>
+</head>
+
+<body>
+
+    <h1>{{ evento.nombre }}</h1>
+
+    <h2>{{ mesa.etiqueta }}</h2>
+
+    <p>
+        ✅ Acceso autorizado.
+    </p>
+
+    <p>
+        Ya puedes compartir las fotos de este evento.
+    </p>
+
+    {% if instrucciones_aceptadas %}
+
+    <a href="{% url 'subir_fotos' evento.slug mesa.token %}">
+        📸 Seleccionar fotos
+    </a>
+
+    {% else %}
+
+        <a href="{% url 'instrucciones' evento.slug mesa.token %}">
+            📋 Antes de subir fotos
+        </a>
+
+    {% endif %}
+
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Subir fotos - {{ evento.nombre }}</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 25px 15px;
+        }
+
+        .encabezado {
+            text-align: center;
+        }
+
+        .selector {
+            display: block;
+            width: 100%;
+            padding: 18px;
+            margin-top: 25px;
+            border: 2px dashed #aaa;
+            border-radius: 14px;
+            background: #fafafa;
+            cursor: pointer;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .selector input {
+            display: none;
+        }
+
+        .contador {
+            margin-top: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .galeria {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .foto {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #eee;
+        }
+
+        .foto img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .mensaje {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f1f1f1;
+        }
+
+        .boton {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-top: 25px;
+            border: 0;
+            border-radius: 10px;
+            background: #333;
+            color: white;
+            font-size: 17px;
+        }
+
+        .boton:disabled {
+            opacity: 0.5;
+        }
+
+        @media (min-width: 600px) {
+            .galeria {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="encabezado">
+
+        <h1>📸 Comparte tus fotos</h1>
+
+        <h2>{{ evento.nombre }}</h2>
+
+        <p>
+            {{ mesa.etiqueta }}
+        </p>
+
+    </div>
+
+    <label class="selector">
+
+        📷 Seleccionar fotos
+
+        <input
+            type="file"
+            id="selectorFotos"
+            accept="image/jpeg,image/png,image/heic,image/heif"
+            multiple
+        >
+
+    </label>
+
+    <div
+        id="contador"
+        class="contador"
+    >
+        0 de 20 fotos seleccionadas
+    </div>
+
+    <div
+        id="mensaje"
+        class="mensaje"
+        style="display: none;"
+    ></div>
+
+    <div
+        id="galeria"
+        class="galeria"
+    ></div>
+
+    <button
+        id="botonSubir"
+        class="boton"
+        type="button"
+        disabled
+    >
+        🚀 Subir fotos
+    </button>
+
+
+    <script>
+
+        const selector = document.getElementById("selectorFotos");
+        const galeria = document.getElementById("galeria");
+        const contador = document.getElementById("contador");
+        const mensaje = document.getElementById("mensaje");
+        const botonSubir = document.getElementById("botonSubir");
+
+        const MAX_FOTOS = 20;
+
+        let fotosSeleccionadas = [];
+
+
+        selector.addEventListener("change", function () {
+
+            const nuevasFotos = Array.from(selector.files);
+
+            mensaje.style.display = "none";
+            mensaje.textContent = "";
+
+            if (nuevasFotos.length > MAX_FOTOS) {
+
+                mensaje.textContent =
+                    "Puedes seleccionar un máximo de 20 fotos.";
+
+                mensaje.style.display = "block";
+
+                fotosSeleccionadas = nuevasFotos.slice(0, MAX_FOTOS);
+
+            } else {
+
+                fotosSeleccionadas = nuevasFotos;
+
+            }
+
+            mostrarPreviews();
+
+        });
+
+
+        function mostrarPreviews() {
+
+            galeria.innerHTML = "";
+
+            contador.textContent =
+                `${fotosSeleccionadas.length} de ${MAX_FOTOS} fotos seleccionadas`;
+
+            botonSubir.disabled =
+                fotosSeleccionadas.length === 0;
+
+            fotosSeleccionadas.forEach(function (foto) {
+
+                const contenedor = document.createElement("div");
+
+                contenedor.className = "foto";
+
+                const imagen = document.createElement("img");
+
+                imagen.alt = foto.name;
+
+                imagen.src = URL.createObjectURL(foto);
+
+                contenedor.appendChild(imagen);
+
+                galeria.appendChild(contenedor);
+
+            });
+
+        }
+
+
+        botonSubir.addEventListener("click", function () {
+
+            mensaje.textContent =
+                "La subida de fotos se conectará a Cloudflare R2 en el siguiente paso.";
+
+            mensaje.style.display = "block";
+
+        });
+
+    </script>
+
+</body>
+</html>

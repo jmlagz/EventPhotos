@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{{ evento.nombre }} - {{ mesa.etiqueta }}</title>
+</head>
+
+<body>
+
+    <h1>{{ evento.nombre }}</h1>
+
+    <h2>{{ mesa.etiqueta }}</h2>
+
+    <p>
+        📸 Comparte las fotos de este evento.
+    </p>
+
+    <p>
+        Para comenzar, necesitamos confirmar que estás
+        en esta mesa.
+    </p>
+
+    <a href="{% url 'verificar_acceso' evento.slug mesa.token %}">
+        📸 Subir fotos
+    </a>
+
+</body>
+</html>

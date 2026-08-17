@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Acceso - {{ evento.nombre }}</title>
+</head>
+
+<body>
+
+    <h1>{{ evento.nombre }}</h1>
+
+    <h2>{{ mesa.etiqueta }}</h2>
+
+    <p>
+        Introduce el código que aparece junto al código QR.
+    </p>
+
+    {% if error %}
+        <p>
+            ❌ {{ error }}
+        </p>
+    {% endif %}
+
+    <form method="post">
+
+        {% csrf_token %}
+
+        <label for="codigo">
+            Código de acceso
+        </label>
+
+        <br><br>
+
+        <input
+            type="text"
+            id="codigo"
+            name="codigo"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            minlength="6"
+            autocomplete="one-time-code"
+            required
+        >
+
+        <br><br>
+
+        <button type="submit">
+            Continuar
+        </button>
+
+    </form>
+
+</body>
+</html>

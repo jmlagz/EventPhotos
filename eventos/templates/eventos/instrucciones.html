@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Antes de subir fotos - {{ evento.nombre }}</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            line-height: 1.6;
+        }
+
+        .tarjeta {
+            border: 1px solid #ddd;
+            border-radius: 16px;
+            padding: 25px;
+        }
+
+        .boton {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin-top: 20px;
+            border: 0;
+            border-radius: 10px;
+            background: #333;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .check {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            margin-top: 20px;
+        }
+
+        .check input {
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="tarjeta">
+
+        <h1>📸 Antes de subir tus fotos</h1>
+
+        <h2>{{ evento.nombre }}</h2>
+
+        <p>
+            Estás compartiendo fotos desde
+            <strong>{{ mesa.etiqueta }}</strong>.
+        </p>
+
+        <p>
+            Puedes seleccionar varias fotos al mismo tiempo
+            desde tu teléfono.
+        </p>
+
+        <p>
+            Las fotos que compartas formarán parte del álbum
+            de este evento.
+        </p>
+
+        <p>
+            Por favor, comparte únicamente fotos apropiadas
+            para todos los asistentes.
+        </p>
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            <label class="check">
+
+                <input
+                    type="checkbox"
+                    name="acepto"
+                    required
+                >
+
+                <span>
+                    Entiendo y quiero compartir mis fotos
+                    en este evento.
+                </span>
+
+            </label>
+
+            <button class="boton" type="submit">
+                Continuar
+            </button>
+
+        </form>
+
+    </div>
+
+</body>
+</html>

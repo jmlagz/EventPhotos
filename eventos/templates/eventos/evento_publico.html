@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{{ evento.nombre }}</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            text-align: center;
+            background: #f7f7f7;
+        }
+
+        .portada {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            border-radius: 16px;
+        }
+
+        .boton {
+            display: inline-block;
+            padding: 14px 24px;
+            margin: 10px 5px;
+            border-radius: 10px;
+            background: #333333;
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    {% if evento.imagen_portada %}
+        <img
+            class="portada"
+            src="{{ evento.imagen_portada.url }}"
+            alt="{{ evento.nombre }}"
+        >
+    {% endif %}
+
+    <h1>{{ evento.nombre }}</h1>
+
+    <p>{{ evento.fecha|date:"d \d\e F \d\e Y" }}</p>
+
+    {% if evento.mensaje_bienvenida %}
+        <p>{{ evento.mensaje_bienvenida }}</p>
+    {% endif %}
+
+    <a href="#" class="boton">
+        📸 Subir fotos
+    </a>
+
+    <a href="#" class="boton">
+        🖼️ Ver álbum
+    </a>
+
+</body>
+</html>
