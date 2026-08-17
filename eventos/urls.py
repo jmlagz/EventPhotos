@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 
 
+
 urlpatterns = [
     path(
         "fotos/<slug:slug>/",
@@ -29,5 +30,11 @@ urlpatterns = [
         "fotos/<slug:slug>/t/<str:token>/subir/",
         views.subir_fotos,
         name="subir_fotos",
+    ),
+
+    path(
+    "fotos/<slug:slug>/t/<str:token>/solicitar-url-subida/",
+    views.solicitar_url_subida,
+    name="solicitar_url_subida",
     ),
 ]

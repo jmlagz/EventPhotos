@@ -222,12 +222,87 @@
         }
 
 
-        botonSubir.addEventListener("click", function () {
+        botonSubir.addEventListener("click", async function () {
 
-            mensaje.textContent =
-                "La subida de fotos se conectará a Cloudflare R2 en el siguiente paso.";
+            if (fotosSeleccionadas.length === 0) {
+                return;
+            }
+
+            botonSubir.disabled = true;
 
             mensaje.style.display = "block";
+            mensaje.textContent = "Preparando la subida...";
+
+            try {
+
+                for (let i = 0; i < fotosSeleccionadas.length; i++) {
+
+                    const foto = fotosSeleccionadas[i];
+
+                    mensaje.textContent =
+                        `Subiendo foto ${i + 1} de ${fotosSeleccionadas.length}...`;
+
+                    // 1. Pedimos a Django una URL temporal
+                    const datos = new URLSearchParams();
+
+                    datos.append("nombre", foto.name);
+                    datos.append("content_type", foto.type);
+
+                    const respuesta = await fetch(
+                        "{% url 'solicitar_url_subida' slug=evento.slug token=mesa.token %}",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "X-CSRFToken": "{{ csrf_token }}",
+                                "Content-Type": "application/x-www-form-urlencoded",
+                            },
+
+                            body: datos,
+                        }
+                    );
+
+                    const resultado = await respuesta.json();
+
+                    if (!respuesta.ok) {
+                        throw new Error(
+                            resultado.error || "No fue posible preparar la subida."
+                        );
+                    }
+
+                    // 2. Subimos directamente a Cloudflare R2
+                    const subida = await fetch(
+                        resultado.url,
+                        {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type": foto.type,
+                            },
+                            body: foto,
+                        }
+                    );
+
+                    if (!subida.ok) {
+                        throw new Error(
+                            `R2 rechazó la subida de ${foto.name}.`
+                        );
+                    }
+                }
+
+                mensaje.textContent =
+                    `✅ ${fotosSeleccionadas.length} foto(s) subida(s) correctamente.`;
+
+                botonSubir.disabled = true;
+
+            } catch (error) {
+
+                console.error(error);
+
+                mensaje.textContent =
+                    `❌ ${error.message}`;
+
+                botonSubir.disabled = false;
+            }
 
         });
 

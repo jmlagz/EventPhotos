@@ -1,4 +1,8 @@
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+from .r2 import generar_url_subida
 
 from .models import Evento, Mesa
 
@@ -216,4 +220,88 @@ def subir_fotos(request, slug, token):
             "evento": evento,
             "mesa": mesa,
         },
+    )
+
+@require_POST
+def solicitar_url_subida(request, slug, token):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
+    mesa = get_object_or_404(
+        Mesa,
+        evento=evento,
+        token=token,
+        activa=True,
+    )
+
+    # Debe existir una sesión autorizada para esta mesa.
+    if request.session.get("mesa_id") != mesa.id:
+        return JsonResponse(
+            {"error": "No autorizado."},
+            status=403,
+        )
+
+    # Debe haber aceptado las instrucciones.
+    if not request.session.get("instrucciones_aceptadas"):
+        return JsonResponse(
+            {"error": "Debes aceptar las instrucciones."},
+            status=403,
+        )
+
+    nombre = request.POST.get("nombre", "").strip()
+    content_type = request.POST.get("content_type", "").strip()
+
+    if not nombre or not content_type:
+        return JsonResponse(
+            {"error": "Faltan datos de la foto."},
+            status=400,
+        )
+
+    # Por ahora aceptamos solamente imágenes.
+    tipos_permitidos = {
+        "image/jpeg",
+        "image/png",
+        "image/heic",
+        "image/heif",
+    }
+
+    if content_type not in tipos_permitidos:
+        return JsonResponse(
+            {"error": "Tipo de imagen no permitido."},
+            status=400,
+        )
+
+    # Generamos una clave única para evitar colisiones.
+    import uuid
+
+    extension = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else "jpg"
+
+    object_key = (
+        f"eventos/{evento.slug}/"
+        f"mesas/{mesa.token}/"
+        f"{uuid.uuid4().hex}.{extension}"
+    )
+
+    try:
+        url = generar_url_subida(
+            object_key=object_key,
+            content_type=content_type,
+        )
+    except Exception:
+        return JsonResponse(
+            {"error": "No fue posible generar la URL de subida."},
+            status=500,
+        )
+
+    return JsonResponse(
+        {
+            "url": url,
+            "object_key": object_key,
+        }
     )
