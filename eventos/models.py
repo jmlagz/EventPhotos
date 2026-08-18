@@ -53,6 +53,18 @@ class Evento(models.Model):
         null=True,
     )
 
+    imagen_portada_key = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+    )
+
+    logo_key = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+    )
+
     color_principal = models.CharField(
         max_length=7,
         default="#000000",

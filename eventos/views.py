@@ -11,6 +11,7 @@ from .limites import (
     MAX_STORAGE_POR_EVENTO,
     MAX_TAMANO_FOTO,
     MAX_STORAGE_PRUEBAS,
+    MAX_TAMANO_PERSONALIZACION,
 )
 
 from django.shortcuts import get_object_or_404, redirect, render
@@ -89,14 +90,29 @@ def evento_publico(request, slug):
         ],
     )
 
+    imagen_portada_url = None
+
+    if evento.imagen_portada_key:
+        imagen_portada_url = generar_url_lectura(
+            evento.imagen_portada_key
+        )
+
+    logo_url = None
+
+    if evento.logo_key:
+        logo_url = generar_url_lectura(
+            evento.logo_key
+        )
+
     return render(
         request,
         "eventos/evento_publico.html",
         {
             "evento": evento,
+            "imagen_portada_url": imagen_portada_url,
+            "logo_url": logo_url,
         },
     )
-
 
 def mesa_publica(request, slug, token):
     evento = get_object_or_404(
@@ -761,6 +777,14 @@ def album_publico(request, slug):
         },
     )
 
+def home(request):
+    return render(
+        request,
+        "eventos/home.html",
+    )
+
+
+
 @login_required
 def dashboard(request):
     eventos = eventos_del_usuario(request)
@@ -828,6 +852,206 @@ def dashboard(request):
         },
     )
 
+
+@login_required
+def confirmar_personalizacion(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    if request.method != "POST":
+        return JsonResponse(
+            {"error": "Método no permitido."},
+            status=405,
+        )
+
+    tipo = request.POST.get("tipo", "").strip()
+    object_key = request.POST.get("object_key", "").strip()
+
+    if tipo not in {"portada", "logo"}:
+        return JsonResponse(
+            {"error": "Tipo de personalización no válido."},
+            status=400,
+        )
+
+    if not object_key:
+        return JsonResponse(
+            {"error": "Falta la referencia del archivo."},
+            status=400,
+        )
+
+    prefijo_esperado = (
+        f"eventos/{evento.slug}/"
+        f"personalizacion/{tipo}/"
+    )
+
+    if not object_key.startswith(prefijo_esperado):
+        return JsonResponse(
+            {"error": "Objeto de almacenamiento no válido."},
+            status=400,
+        )
+
+    try:
+        r2 = get_r2_client()
+
+        objeto = r2.head_object(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=object_key,
+        )
+
+    except Exception:
+        return JsonResponse(
+            {
+                "error": (
+                    "No fue posible verificar la imagen "
+                    "en el almacenamiento."
+                )
+            },
+            status=400,
+        )
+
+    content_type = objeto.get("ContentType", "")
+
+    tipos_permitidos = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+
+    if content_type not in tipos_permitidos:
+        try:
+            r2.delete_object(
+                Bucket=settings.R2_BUCKET_NAME,
+                Key=object_key,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {"error": "El archivo no es una imagen válida."},
+            status=400,
+        )
+
+    if tipo == "portada":
+        evento.imagen_portada_key = object_key
+
+    else:
+        evento.logo_key = object_key
+
+    evento.save(
+        update_fields=[
+            "imagen_portada_key"
+            if tipo == "portada"
+            else "logo_key",
+            "updated_at",
+        ]
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "tipo": tipo,
+            "object_key": object_key,
+        }
+    )
+
+
+@login_required
+def solicitar_url_personalizacion(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    if request.method != "POST":
+        return JsonResponse(
+            {"error": "Método no permitido."},
+            status=405,
+        )
+
+    tipo = request.POST.get("tipo", "").strip()
+    nombre = request.POST.get("nombre", "").strip()
+    content_type = request.POST.get("content_type", "").strip()
+
+    tamaño = request.POST.get("tamaño", "").strip()
+
+    try:
+        tamaño = int(tamaño)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Tamaño de archivo inválido."},
+            status=400,
+        )
+
+    if tamaño <= 0:
+        return JsonResponse(
+            {"error": "El archivo está vacío."},
+            status=400,
+        )
+
+    if tamaño > MAX_TAMANO_PERSONALIZACION:
+        return JsonResponse(
+            {
+                "error": (
+                    "La imagen es demasiado grande. "
+                    "El límite es de 5 MB."
+                )
+            },
+            status=400,
+        )
+
+    if tipo not in {"portada", "logo"}:
+        return JsonResponse(
+            {"error": "Tipo de personalización no válido."},
+            status=400,
+        )
+
+    if not nombre or not content_type:
+        return JsonResponse(
+            {"error": "Faltan datos de la imagen."},
+            status=400,
+        )
+
+    tipos_permitidos = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+
+    if content_type not in tipos_permitidos:
+        return JsonResponse(
+            {"error": "Tipo de imagen no permitido."},
+            status=400,
+        )
+
+    import uuid
+
+    extension = (
+        nombre.rsplit(".", 1)[-1].lower()
+        if "." in nombre
+        else "jpg"
+    )
+
+    object_key = (
+        f"eventos/{evento.slug}/"
+        f"personalizacion/{tipo}/"
+        f"{uuid.uuid4().hex}.{extension}"
+    )
+
+    try:
+        url = generar_url_subida(
+            object_key=object_key,
+            content_type=content_type,
+        )
+    except Exception:
+        return JsonResponse(
+            {"error": "No fue posible generar la URL de subida."},
+            status=500,
+        )
+
+    return JsonResponse(
+        {
+            "url": url,
+            "object_key": object_key,
+        }
+    )
+
+
 @login_required
 def dashboard_evento(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
@@ -856,6 +1080,20 @@ def dashboard_evento(request, slug):
         * 100
     )
 
+    imagen_portada_url = None
+
+    if evento.imagen_portada_key:
+        imagen_portada_url = generar_url_lectura(
+            evento.imagen_portada_key
+        )
+
+    logo_url = None
+
+    if evento.logo_key:
+        logo_url = generar_url_lectura(
+            evento.logo_key
+        )
+
     return render(
         request,
         "eventos/dashboard_evento.html",
@@ -867,6 +1105,8 @@ def dashboard_evento(request, slug):
             "porcentaje_almacenamiento": porcentaje_almacenamiento,
             "max_fotos": MAX_FOTOS_POR_EVENTO,
             "max_almacenamiento": MAX_STORAGE_POR_EVENTO,
+            "imagen_portada_url": imagen_portada_url,
+            "logo_url": logo_url,
         },
     )
 
@@ -948,15 +1188,9 @@ def mesas_dashboard(request, slug):
 @login_required
 def configurar_mesas(request, slug):
 
-    if not request.user.is_superuser:
-        return get_object_or_404(
-            Evento,
-            slug="__acceso_denegado__",
-        )
-
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
+    evento = obtener_evento_del_usuario(
+        request,
+        slug,
     )
 
     if request.method == "POST":

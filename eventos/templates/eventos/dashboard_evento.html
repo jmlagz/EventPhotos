@@ -97,6 +97,67 @@
                 min-width: 2px;
             }
         }
+
+        .personalizacion-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .personalizacion-item {
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .personalizacion-item h3 {
+            margin-top: 0;
+        }
+
+        .preview-imagen {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 10px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .preview-logo {
+            width: 180px;
+            height: 180px;
+            object-fit: contain;
+            border-radius: 10px;
+            display: block;
+            margin-bottom: 10px;
+            background: #f7f7f7;
+        }
+
+        .preview-vacio {
+            height: 180px;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .personalizacion-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ayuda {
+            margin: 10px 0 0;
+            color: #777;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
     </style>
 </head>
 
@@ -147,7 +208,15 @@
                 🪑 Mesas
             </div>
 
+            <a
+                href="{% url 'configurar_mesas' slug=evento.slug %}"
+                class="boton"
+            >
+                🪑 Administrar mesas
+            </a>
+
         </div>
+
 
         <div class="tarjeta">
 
@@ -206,7 +275,7 @@
             Ver fotos
         </a>
 
-    
+
 
         <a
             href="{% url 'album_publico' slug=evento.slug %}"
@@ -238,6 +307,118 @@
 
     </div>
 
+    <div class="seccion">
+
+        <h2>🎨 Personalización</h2>
+
+        <p>
+            Personaliza la apariencia de la página pública
+            de este evento.
+        </p>
+
+        <div class="personalizacion-grid">
+
+            <div class="personalizacion-item">
+
+                <h3>🖼️ Imagen de portada</h3>
+
+                {% if imagen_portada_url %}
+
+                    <img
+                        src="{{ imagen_portada_url }}"
+                        class="preview-imagen"
+                        alt="Imagen de portada de {{ evento.nombre }}"
+                    >
+
+                {% else %}
+
+                    <div class="preview-vacio">
+                        Sin imagen de portada
+                    </div>
+
+                {% endif %}
+
+                <input
+                    type="file"
+                    id="portadaInput"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                >
+
+                <button
+                    type="button"
+                    class="boton"
+                    id="portadaBoton"
+                >
+                    Seleccionar imagen
+                </button>
+
+                <p class="ayuda">
+                    Recomendado: 1600 × 900 px · JPG, PNG o WebP · máximo 5 MB.
+                    Usa una imagen horizontal para obtener el mejor resultado.
+                </p>
+
+                <p
+                    id="portadaMensaje"
+                    style="display: none;"
+                ></p>
+
+            </div>
+
+
+            <div class="personalizacion-item">
+
+                <h3>🏷️ Logo</h3>
+
+                {% if logo_url %}
+
+                    <img
+                        src="{{ logo_url }}"
+                        class="preview-logo"
+                        alt="Logo de {{ evento.nombre }}"
+                    >
+
+                {% else %}
+
+                    <div class="preview-vacio">
+                        Sin logo
+                    </div>
+
+                {% endif %}
+
+                <input
+                    type="file"
+                    id="logoInput"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                >
+                    Seleccionar logo
+                </input>
+
+                <button
+                    type="button"
+                    class="boton"
+                    id="logoBoton"
+                >
+                    Seleccionar logo
+                </button>
+
+                <p class="ayuda">
+                    Recomendado: 1000 × 1000 px · PNG, JPG o WebP · máximo 5 MB.
+                    Preferentemente cuadrado y con buena resolución.
+                </p>
+
+                <p
+                    id="logoMensaje"
+                    style="display: none;"
+                ></p>
+
+            </div>
+
+        </div>
+
+    </div>
+
 
     <div class="seccion">
 
@@ -250,5 +431,453 @@
 
     </div>
 
+<script>
+    const portadaInput =
+        document.getElementById("portadaInput");
+
+    const portadaBoton =
+        document.getElementById("portadaBoton");
+
+    const portadaMensaje =
+        document.getElementById("portadaMensaje");
+
+
+    portadaBoton.addEventListener("click", function () {
+
+        portadaInput.click();
+
+    });
+
+
+    portadaInput.addEventListener("change", async function () {
+
+        const archivo = portadaInput.files[0];
+
+        if (!archivo) {
+            return;
+        }
+
+
+        const maximo = 5 * 1024 * 1024;
+
+        if (archivo.size > maximo) {
+
+            portadaMensaje.textContent =
+                "La imagen no puede superar los 5 MB.";
+
+            portadaMensaje.style.display = "block";
+
+            portadaInput.value = "";
+
+            return;
+        }
+
+
+        portadaBoton.disabled = true;
+
+        portadaMensaje.textContent =
+            "Preparando imagen...";
+
+        portadaMensaje.style.display = "block";
+
+
+        try {
+
+            // 1. Pedimos a Django una URL temporal
+
+            const datos = new URLSearchParams();
+
+            datos.append(
+                "tipo",
+                "portada"
+            );
+
+            datos.append(
+                "nombre",
+                archivo.name
+            );
+
+            datos.append(
+                "content_type",
+                archivo.type
+            );
+
+            datos.append(
+                "tamaño",
+                archivo.size
+            );
+
+
+            const respuesta =
+                await fetch(
+                    "{% url 'solicitar_url_personalizacion' slug=evento.slug %}",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "X-CSRFToken":
+                                "{{ csrf_token }}",
+
+                            "Content-Type":
+                                "application/x-www-form-urlencoded",
+                        },
+
+                        body: datos,
+                    }
+                );
+
+
+            const resultado =
+                await respuesta.json();
+
+
+            if (!respuesta.ok) {
+
+                throw new Error(
+                    resultado.error ||
+                    "No fue posible preparar la imagen."
+                );
+
+            }
+
+
+            // 2. Subimos directamente a R2
+
+            portadaMensaje.textContent =
+                "Subiendo imagen...";
+
+
+            const subida =
+                await fetch(
+                    resultado.url,
+                    {
+                        method: "PUT",
+
+                        headers: {
+                            "Content-Type":
+                                archivo.type,
+                        },
+
+                        body: archivo,
+                    }
+                );
+
+
+            if (!subida.ok) {
+
+                throw new Error(
+                    "R2 rechazó la subida de la imagen."
+                );
+
+            }
+
+
+            // 3. Confirmamos la subida en Django
+
+            portadaMensaje.textContent =
+                "Guardando imagen...";
+
+
+            const confirmacion =
+                new URLSearchParams();
+
+            confirmacion.append(
+                "tipo",
+                "portada"
+            );
+
+            confirmacion.append(
+                "object_key",
+                resultado.object_key
+            );
+
+
+            const respuestaConfirmacion =
+                await fetch(
+                    "{% url 'confirmar_personalizacion' slug=evento.slug %}",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "X-CSRFToken":
+                                "{{ csrf_token }}",
+
+                            "Content-Type":
+                                "application/x-www-form-urlencoded",
+                        },
+
+                        body: confirmacion,
+                    }
+                );
+
+
+            const resultadoConfirmacion =
+                await respuestaConfirmacion.json();
+
+
+            if (!respuestaConfirmacion.ok) {
+
+                throw new Error(
+                    resultadoConfirmacion.error ||
+                    "No fue posible guardar la imagen."
+                );
+
+            }
+
+
+            // 4. Todo correcto
+
+            portadaMensaje.textContent =
+                "Imagen guardada correctamente. ✓";
+
+
+            setTimeout(function () {
+
+                window.location.reload();
+
+            }, 700);
+
+        } catch (error) {
+
+            console.error(error);
+
+            portadaMensaje.textContent =
+                error.message ||
+                "Ocurrió un error al subir la imagen.";
+
+        } finally {
+
+            portadaBoton.disabled = false;
+
+            portadaInput.value = "";
+
+        }
+
+    });
+
+    const logoInput =
+        document.getElementById("logoInput");
+
+    const logoBoton =
+        document.getElementById("logoBoton");
+
+    const logoMensaje =
+        document.getElementById("logoMensaje");
+
+
+    logoBoton.addEventListener("click", function () {
+
+        logoInput.click();
+
+    });
+
+
+    logoInput.addEventListener("change", async function () {
+
+        const archivo = logoInput.files[0];
+
+        if (!archivo) {
+            return;
+        }
+
+
+        const maximo = 5 * 1024 * 1024;
+
+        if (archivo.size > maximo) {
+
+            logoMensaje.textContent =
+                "El logo no puede superar los 5 MB.";
+
+            logoMensaje.style.display = "block";
+
+            logoInput.value = "";
+
+            return;
+        }
+
+
+        logoBoton.disabled = true;
+
+        logoMensaje.textContent =
+            "Preparando logo...";
+
+        logoMensaje.style.display = "block";
+
+
+        try {
+
+            // 1. Pedimos a Django una URL temporal
+
+            const datos = new URLSearchParams();
+
+            datos.append(
+                "tipo",
+                "logo"
+            );
+
+            datos.append(
+                "nombre",
+                archivo.name
+            );
+
+            datos.append(
+                "content_type",
+                archivo.type
+            );
+
+            datos.append(
+                "tamaño",
+                archivo.size
+            );
+
+
+            const respuesta =
+                await fetch(
+                    "{% url 'solicitar_url_personalizacion' slug=evento.slug %}",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "X-CSRFToken":
+                                "{{ csrf_token }}",
+
+                            "Content-Type":
+                                "application/x-www-form-urlencoded",
+                        },
+
+                        body: datos,
+                    }
+                );
+
+
+            const resultado =
+                await respuesta.json();
+
+
+            if (!respuesta.ok) {
+
+                throw new Error(
+                    resultado.error ||
+                    "No fue posible preparar el logo."
+                );
+
+            }
+
+
+            // 2. Subimos directamente a R2
+
+            logoMensaje.textContent =
+                "Subiendo logo...";
+
+
+            const subida =
+                await fetch(
+                    resultado.url,
+                    {
+                        method: "PUT",
+
+                        headers: {
+                            "Content-Type":
+                                archivo.type,
+                        },
+
+                        body: archivo,
+                    }
+                );
+
+
+            if (!subida.ok) {
+
+                throw new Error(
+                    "R2 rechazó la subida del logo."
+                );
+
+            }
+
+
+            // 3. Confirmamos la subida en Django
+
+            logoMensaje.textContent =
+                "Guardando logo...";
+
+
+            const confirmacion =
+                new URLSearchParams();
+
+            confirmacion.append(
+                "tipo",
+                "logo"
+            );
+
+            confirmacion.append(
+                "object_key",
+                resultado.object_key
+            );
+
+
+            const respuestaConfirmacion =
+                await fetch(
+                    "{% url 'confirmar_personalizacion' slug=evento.slug %}",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "X-CSRFToken":
+                                "{{ csrf_token }}",
+
+                            "Content-Type":
+                                "application/x-www-form-urlencoded",
+                        },
+
+                        body: confirmacion,
+                    }
+                );
+
+
+            const resultadoConfirmacion =
+                await respuestaConfirmacion.json();
+
+
+            if (!respuestaConfirmacion.ok) {
+
+                throw new Error(
+                    resultadoConfirmacion.error ||
+                    "No fue posible guardar el logo."
+                );
+
+            }
+
+
+            // 4. Todo correcto
+
+            logoMensaje.textContent =
+                "Logo guardado correctamente. ✓";
+
+
+            setTimeout(function () {
+
+                window.location.reload();
+
+            }, 700);
+
+        } catch (error) {
+
+            console.error(error);
+
+            logoMensaje.textContent =
+                error.message ||
+                "Ocurrió un error al subir el logo.";
+
+        } finally {
+
+            logoBoton.disabled = false;
+
+            logoInput.value = "";
+
+        }
+
+    });
+
+</script>
 </body>
 </html>

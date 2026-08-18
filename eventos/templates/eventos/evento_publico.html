@@ -1,62 +1,236 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>{{ evento.nombre }}</title>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>{{ evento.nombre }} · EventPhotos</title>
 
     <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
+            margin: 0;
             font-family: Arial, sans-serif;
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            text-align: center;
             background: #f7f7f7;
+            color: #222;
+        }
+
+        .contenedor {
+            width: 100%;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 25px 20px 40px;
+        }
+
+        .marca {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .marca-nombre {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: -0.5px;
+        }
+
+        .evento {
+            background: white;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
         }
 
         .portada {
+            display: block;
             width: 100%;
-            max-height: 400px;
+            height: 360px;
             object-fit: cover;
-            border-radius: 16px;
+        }
+
+        .contenido {
+            padding: 30px 25px;
+            text-align: center;
+        }
+
+        .logo {
+            display: block;
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            margin: 0 auto 15px;
+        }
+
+        .nombre-evento {
+            margin: 0;
+            font-size: 32px;
+            line-height: 1.2;
+        }
+
+        .fecha {
+            margin: 10px 0 0;
+            color: #777;
+            font-size: 16px;
+        }
+
+        .mensaje {
+            max-width: 560px;
+            margin: 22px auto;
+            color: #555;
+            font-size: 18px;
+            line-height: 1.5;
         }
 
         .boton {
             display: inline-block;
-            padding: 14px 24px;
-            margin: 10px 5px;
+            padding: 13px 22px;
+            margin-top: 8px;
             border-radius: 10px;
-            background: #333333;
+            background: #333;
             color: white;
             text-decoration: none;
+            font-weight: bold;
         }
+
+        .boton:hover {
+            background: #222;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #777;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        footer p {
+            margin: 3px 0;
+        }
+
+        @media (max-width: 600px) {
+
+            .contenedor {
+                padding: 18px 14px 30px;
+            }
+
+            .marca {
+                margin-bottom: 18px;
+            }
+
+            .portada {
+                height: 260px;
+            }
+
+            .contenido {
+                padding: 25px 18px;
+            }
+
+            .nombre-evento {
+                font-size: 27px;
+            }
+
+            .mensaje {
+                font-size: 16px;
+            }
+
+        }
+
     </style>
+
 </head>
 
 <body>
 
-    {% if evento.imagen_portada %}
-        <img
-            class="portada"
-            src="{{ evento.imagen_portada.url }}"
-            alt="{{ evento.nombre }}"
-        >
-    {% endif %}
+    <div class="contenedor">
 
-    <h1>{{ evento.nombre }}</h1>
+        <div class="marca">
+            <div class="marca-nombre">
+                EventPhotos
+            </div>
+        </div>
 
-    <p>{{ evento.fecha|date:"d \d\e F \d\e Y" }}</p>
 
-    {% if evento.mensaje_bienvenida %}
-        <p>{{ evento.mensaje_bienvenida }}</p>
-    {% endif %}
+        <main class="evento">
 
-    
-    <a href="{% url 'album_publico' slug=evento.slug %}" class="boton">
-        🖼️ Ver álbum
-    </a>
+            {% if evento.imagen_portada %}
+
+                <img
+                    class="portada"
+                    src="{{ imagen_portada_url }}"
+                    alt="{{ evento.nombre }}"
+                >
+
+            {% endif %}
+
+
+            <div class="contenido">
+
+                {% if logo_url %}
+
+                    <img
+                        class="logo"
+                        src="{{ logo_url }}"
+                        alt="Logo de {{ evento.nombre }}"
+                    >
+
+                {% endif %}
+
+
+                <h1 class="nombre-evento">
+                    {{ evento.nombre }}
+                </h1>
+
+
+                <p class="fecha">
+                    {{ evento.fecha|date:"d \d\e F \d\e Y" }}
+                </p>
+
+
+                {% if evento.mensaje_bienvenida %}
+
+                    <p class="mensaje">
+                        {{ evento.mensaje_bienvenida }}
+                    </p>
+
+                {% endif %}
+
+
+                <a
+                    href="{% url 'album_publico' slug=evento.slug %}"
+                    class="boton"
+                >
+                    📷 Ver álbum
+                </a>
+
+            </div>
+
+        </main>
+
+
+        <footer>
+
+            <p>
+                EventPhotos · creado por LuisArt
+            </p>
+
+            <p>
+                luisart@lotus-nest.com
+            </p>
+
+        </footer>
+
+    </div>
 
 </body>
+
 </html>

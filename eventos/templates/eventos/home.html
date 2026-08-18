@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>EventPhotos</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            color: #222;
+        }
+
+        .contenedor {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 70px 20px 60px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 52px;
+        }
+
+        .hero p {
+            max-width: 650px;
+            margin: 20px auto 30px;
+            font-size: 20px;
+            line-height: 1.5;
+            color: #666;
+        }
+
+        .boton {
+            display: inline-block;
+            padding: 13px 22px;
+            border-radius: 10px;
+            background: #222;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .boton:hover {
+            background: #444;
+        }
+
+        .pasos {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .paso {
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .icono {
+            font-size: 38px;
+            margin-bottom: 12px;
+        }
+
+        .paso h2 {
+            margin-top: 0;
+            font-size: 20px;
+        }
+
+        .paso p {
+            margin-bottom: 0;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        footer {
+            margin-top: 70px;
+            padding: 25px 0;
+            text-align: center;
+            color: #777;
+            font-size: 14px;
+        }
+
+        footer p {
+            margin: 5px 0;
+        }
+
+        @media (max-width: 700px) {
+
+            .hero {
+                padding-top: 45px;
+            }
+
+            .hero h1 {
+                font-size: 40px;
+            }
+
+            .hero p {
+                font-size: 18px;
+            }
+
+            .pasos {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="contenedor">
+
+        <section class="hero">
+
+            <h1>
+                EventPhotos
+            </h1>
+
+            <p>
+                Comparte los momentos que hacen
+                inolvidable tu evento.
+            </p>
+
+            <a
+                href="{% url 'login_anfitrion' %}"
+                class="boton"
+            >
+                Acceso para anfitriones
+            </a>
+
+        </section>
+
+
+        <section class="pasos">
+
+            <div class="paso">
+
+                <div class="icono">
+                    📱
+                </div>
+
+                <h2>
+                    1. Escanea el QR
+                </h2>
+
+                <p>
+                    Tus invitados escanean el código
+                    de su mesa desde su celular.
+                </p>
+
+            </div>
+
+
+            <div class="paso">
+
+                <div class="icono">
+                    📸
+                </div>
+
+                <h2>
+                    2. Comparte tus fotos
+                </h2>
+
+                <p>
+                    Cada invitado puede compartir
+                    fácilmente sus mejores momentos.
+                </p>
+
+            </div>
+
+
+            <div class="paso">
+
+                <div class="icono">
+                    ☁️
+                </div>
+
+                <h2>
+                    3. Disfruta la galería
+                </h2>
+
+                <p>
+                    Todas las fotografías quedan
+                    reunidas en la galería del evento.
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <footer>
+
+            <p>
+                EventPhotos · creado por LuisArt
+            </p>
+
+            <p>
+                luisart@lotus-nest.com
+            </p>
+
+        </footer>
+
+    </div>
+
+</body>
+
+</html>

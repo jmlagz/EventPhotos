@@ -7,6 +7,12 @@ from . import views
 urlpatterns = [
 
     path(
+        "",
+        views.home,
+        name="home",
+    ),
+
+    path(
         "login/",
         views.login_anfitrion,
         name="login_anfitrion",
@@ -127,5 +133,17 @@ urlpatterns = [
         "dashboard/eventos/<slug:slug>/mesas/qr/imprimir-todos/",
         views.imprimir_qrs_mesas,
         name="imprimir_qrs_mesas",
+    ),
+
+    path(
+        "dashboard/eventos/<slug:slug>/personalizacion/solicitar/",
+        views.solicitar_url_personalizacion,
+        name="solicitar_url_personalizacion",
+    ),
+
+    path(
+        "dashboard/eventos/<slug:slug>/personalizacion/confirmar/",
+        views.confirmar_personalizacion,
+        name="confirmar_personalizacion",
     ),
 ]
