@@ -1,0 +1,374 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        {% block title %}EventPhotos{% endblock %}
+    </title>
+
+    <style>
+
+        :root {
+            --color-primary: #635bff;
+            --color-primary-dark: #5148e8;
+            --color-primary-light: #eeedff;
+
+            --color-background: #f6f7fb;
+            --color-surface: #ffffff;
+
+            --color-text: #1f2937;
+            --color-text-secondary: #6b7280;
+            --color-text-muted: #9ca3af;
+
+            --color-border: #e5e7eb;
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+
+            --shadow-sm:
+                0 2px 8px rgba(15, 23, 42, 0.05);
+
+            --shadow-md:
+                0 6px 20px rgba(15, 23, 42, 0.08);
+
+            --transition:
+                0.2s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            min-height: 100%;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                Roboto,
+                Helvetica,
+                Arial,
+                sans-serif;
+
+            background: var(--color-background);
+            color: var(--color-text);
+
+            line-height: 1.5;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        .app-shell {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* =========================
+           HEADER
+           ========================= */
+
+        .app-header {
+            background: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .app-header-inner {
+            width: 100%;
+            max-width: 1200px;
+
+            margin: 0 auto;
+            padding: 16px 24px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 20px;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+
+            text-decoration: none;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 10px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--color-primary),
+                    #8b5cf6
+                );
+
+            color: white;
+
+            font-size: 18px;
+            font-weight: 700;
+
+            box-shadow:
+                0 4px 10px rgba(99, 91, 255, 0.25);
+        }
+
+        .brand-name {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .header-user {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .logout-link {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+
+            transition:
+                color var(--transition);
+        }
+
+        .logout-link:hover {
+            color: var(--color-primary);
+        }
+
+        /* =========================
+           MAIN
+           ========================= */
+
+        .app-main {
+            width: 100%;
+            max-width: 1200px;
+
+            margin: 0 auto;
+            padding: 32px 24px 48px;
+
+            flex: 1;
+        }
+
+        /* =========================
+           FOOTER
+           ========================= */
+
+        .app-footer {
+            padding: 20px 24px;
+
+            text-align: center;
+
+            color: var(--color-text-muted);
+            font-size: 13px;
+        }
+
+        /* =========================
+           UTILIDADES
+           ========================= */
+
+        .card {
+            background: var(--color-surface);
+
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+
+            box-shadow: var(--shadow-sm);
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            gap: 8px;
+
+            min-height: 42px;
+
+            padding: 10px 16px;
+
+            border: 0;
+            border-radius: var(--radius-md);
+
+            background: var(--color-primary);
+            color: white;
+
+            font-weight: 600;
+            text-decoration: none;
+
+            cursor: pointer;
+
+            transition:
+                background var(--transition),
+                transform var(--transition),
+                box-shadow var(--transition);
+        }
+
+        .button:hover {
+            background: var(--color-primary-dark);
+
+            box-shadow:
+                0 5px 14px rgba(99, 91, 255, 0.22);
+        }
+
+        .button:active {
+            transform: translateY(1px);
+        }
+
+        .button-secondary {
+            background: var(--color-surface);
+            color: var(--color-text);
+
+            border: 1px solid var(--color-border);
+        }
+
+        .button-secondary:hover {
+            background: #f9fafb;
+            color: var(--color-text);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* =========================
+           RESPONSIVE
+           ========================= */
+
+        @media (max-width: 700px) {
+
+            .app-header-inner {
+                padding: 14px 16px;
+            }
+
+            .app-main {
+                padding:
+                    24px 16px 36px;
+            }
+
+            .header-user {
+                gap: 8px;
+            }
+
+            .header-user-name {
+                display: none;
+            }
+
+        }
+
+    </style>
+
+    {% block extra_css %}
+    {% endblock %}
+
+</head>
+
+<body>
+
+    <div class="app-shell">
+
+        <header class="app-header">
+
+            <div class="app-header-inner">
+
+                <a
+                    href="{% url 'dashboard' %}"
+                    class="brand"
+                >
+
+                    <span class="brand-mark">
+                        E
+                    </span>
+
+                    <span class="brand-name">
+                        EventPhotos
+                    </span>
+
+                </a>
+
+                {% if request.user.is_authenticated %}
+
+                    <div class="header-user">
+
+                        <span class="header-user-name">
+                            {{ request.user.username }}
+                        </span>
+
+                        <a
+                            href="{% url 'logout_anfitrion' %}"
+                            class="logout-link"
+                        >
+                            Cerrar sesión
+                        </a>
+
+                    </div>
+
+                {% endif %}
+
+            </div>
+
+        </header>
+
+
+        <main class="app-main">
+
+            {% block content %}
+            {% endblock %}
+
+        </main>
+
+
+        <footer class="app-footer">
+
+            EventPhotos
+
+        </footer>
+
+    </div>
+
+
+    {% block extra_js %}
+    {% endblock %}
+
+</body>
+</html>

@@ -1,167 +1,126 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
+{% extends "eventos/base.html" %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block title %}
+    Mesas · {{ evento.nombre }}
+{% endblock %}
 
-    <title>Mesas - {{ evento.nombre }}</title>
+{% block content %}
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            background: #f7f7f7;
-        }
+<div class="page-header">
 
-        .encabezado {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-
-        .volver {
-            color: #555;
-            text-decoration: none;
-        }
-
-        .mesa {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        .mesa h2 {
-            margin-top: 0;
-        }
-
-        .dato {
-            margin: 12px 0;
-        }
-
-        .etiqueta {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .valor {
-            word-break: break-all;
-            background: #f1f1f1;
-            padding: 10px;
-            border-radius: 8px;
-        }
-
-        .codigo {
-            font-size: 24px;
-            letter-spacing: 4px;
-            font-weight: bold;
-        }
-
-        .botones {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 15px;
-        }
-
-        .boton {
-            display: inline-block;
-            padding: 10px 15px;
-            border: 0;
-            border-radius: 8px;
-            background: #333;
-            color: white;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .vacio {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            text-align: center;
-            color: #666;
-        }
-
-        .nombre-mesa {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-
-        .mensaje-guardado {
-            margin-top: 10px;
-            color: #267326;
-            font-size: 14px;
-        }
-    </style>
-</head>
-
-<body>
-
-    <div class="encabezado">
-
-        <div>
-            <h1>🪑 Mesas</h1>
-
-            <p>
-                {{ evento.nombre }}
-            </p>
-        </div>
-
+    <div>
         <a
             href="{% url 'dashboard_evento' slug=evento.slug %}"
-            class="volver"
+            class="back-link"
         >
             ← Volver al evento
         </a>
 
+        <h1 class="page-title">
+            🪑 Mesas
+        </h1>
+
+        <p class="page-subtitle">
+            {{ evento.nombre }}
+        </p>
+    </div>
+
+    <div class="page-actions">
+
+        <a
+            href="{% url 'configurar_mesas' slug=evento.slug %}"
+            class="button button-secondary"
+        >
+            ⚙️ Configurar mesas
+        </a>
+
+        {% if mesas %}
+            <a
+                href="{% url 'imprimir_qrs_mesas' slug=evento.slug %}"
+                target="_blank"
+                class="button"
+            >
+                🖨️ Imprimir todos los QR
+            </a>
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+{% if mesas %}
+
+    <div class="info-card">
+
+        <div class="info-icon">
+            📱
+        </div>
+
+        <div>
+            <h2>
+                Códigos QR de tus mesas
+            </h2>
+
+            <p>
+                Cada mesa tiene un código QR único.
+                Tus invitados pueden escanearlo para acceder
+                al espacio donde compartirán sus fotos.
+            </p>
+        </div>
+
     </div>
 
 
-    {% if mesas %}
+    <div class="mesas-grid">
 
         {% for item in mesas %}
 
-            <div class="mesa">
+            <div class="mesa-card">
 
-                <h2>
-                    Mesa {{ item.mesa.numero }}
-                </h2>
+                <div class="mesa-header">
 
-                <div class="dato">
+                    <div>
+                        <span class="mesa-label">
+                            Mesa
+                        </span>
 
-                    <span class="etiqueta">
-                        Nombre de la mesa
+                        <h2>
+                            {% if item.mesa.nombre %}
+                                {{ item.mesa.nombre }}
+                            {% else %}
+                                Mesa {{ item.mesa.numero }}
+                            {% endif %}
+                        </h2>
+                    </div>
+
+                    <span class="mesa-numero">
+                        #{{ item.mesa.numero }}
                     </span>
+
+                </div>
+
+
+                <div class="campo-mesa">
+
+                    <label for="nombre-mesa-{{ item.mesa.id }}">
+                        Nombre de la mesa
+                    </label>
 
                     <input
                         type="text"
+                        id="nombre-mesa-{{ item.mesa.id }}"
                         class="nombre-mesa"
-                        value="{{ item.mesa.nombre }}"
                         data-mesa-id="{{ item.mesa.id }}"
-                        placeholder="Ej. Familia Novia"
+                        value="{{ item.mesa.nombre|default:'' }}"
+                        placeholder="Ej. Familia López"
                     >
 
                     <button
                         type="button"
-                        class="boton"
-                        onclick="guardarNombreMesa(this)"
+                        class="button button-small"
                         data-mesa-id="{{ item.mesa.id }}"
+                        onclick="guardarNombreMesa(this)"
                     >
                         💾 Guardar nombre
                     </button>
@@ -169,45 +128,37 @@
                 </div>
 
 
-                <div class="dato">
+                <div class="codigo-box">
 
-                    <span class="etiqueta">
+                    <span class="codigo-label">
                         Código de acceso
                     </span>
 
-                    <div class="valor codigo">
+                    <span class="codigo">
                         {{ item.mesa.codigo_acceso }}
-                    </div>
+                    </span>
 
                 </div>
 
 
-                <div class="dato">
+                <div class="url-box">
 
-                    <span class="etiqueta">
+                    <span class="codigo-label">
                         URL de acceso
                     </span>
 
-                    <div class="valor">
+                    <div class="url">
                         {{ item.url }}
                     </div>
 
                 </div>
 
 
-                <div class="botones">
-
-                    <a
-                        href="{% url 'imprimir_qrs_mesas' slug=evento.slug %}"
-                        target="_blank"
-                        class="boton"
-                    >
-                        🖨️ Imprimir todos los QR
-                    </a>
+                <div class="mesa-actions">
 
                     <button
                         type="button"
-                        class="boton"
+                        class="button button-secondary"
                         onclick="copiarTexto('{{ item.mesa.codigo_acceso }}')"
                     >
                         📋 Copiar código
@@ -215,7 +166,7 @@
 
                     <button
                         type="button"
-                        class="boton"
+                        class="button button-secondary"
                         onclick="copiarTexto('{{ item.url }}')"
                     >
                         🔗 Copiar URL
@@ -224,7 +175,7 @@
                     <a
                         href="{{ item.url }}"
                         target="_blank"
-                        class="boton"
+                        class="button button-secondary"
                     >
                         🌎 Abrir acceso
                     </a>
@@ -232,7 +183,7 @@
                     <a
                         href="{% url 'qr_mesa' slug=evento.slug mesa_id=item.mesa.id %}"
                         target="_blank"
-                        class="boton"
+                        class="button"
                     >
                         ▣ Ver QR
                     </a>
@@ -240,7 +191,7 @@
                     <a
                         href="{% url 'imprimir_qr_mesa' slug=evento.slug mesa_id=item.mesa.id %}"
                         target="_blank"
-                        class="boton"
+                        class="button"
                     >
                         🖨️ Imprimir QR
                     </a>
@@ -251,110 +202,378 @@
 
         {% endfor %}
 
-    {% else %}
+    </div>
 
-        <div class="vacio">
-            Este evento no tiene mesas activas.
+{% else %}
+
+    <div class="empty-state">
+
+        <div class="empty-icon">
+            🪑
         </div>
 
-    {% endif %}
+        <h2>
+            Todavía no hay mesas
+        </h2>
+
+        <p>
+            Configura el número de mesas de este evento
+            para comenzar a generar sus códigos QR.
+        </p>
+
+        <a
+            href="{% url 'configurar_mesas' slug=evento.slug %}"
+            class="button"
+        >
+            ⚙️ Configurar mesas
+        </a>
+
+    </div>
+
+{% endif %}
 
 
-    <script>
+<style>
 
-        function copiarTexto(texto) {
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 24px;
+        margin-bottom: 28px;
+    }
 
-            navigator.clipboard.writeText(texto)
-                .then(function () {
+    .back-link {
+        display: inline-block;
+        margin-bottom: 14px;
+        color: #667085;
+        text-decoration: none;
+        font-size: 14px;
+    }
 
-                    alert("Copiado correctamente.");
+    .back-link:hover {
+        text-decoration: underline;
+    }
 
-                })
-                .catch(function () {
+    .page-title {
+        margin: 0;
+        font-size: 32px;
+    }
 
-                    alert("No fue posible copiar.");
+    .page-subtitle {
+        margin: 8px 0 0;
+        color: #667085;
+    }
 
-                });
+    .page-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 11px 16px;
+        border: 0;
+        border-radius: 10px;
+        background: #635bff;
+        color: white;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform .15s ease, opacity .15s ease;
+    }
+
+    .button:hover {
+        opacity: .92;
+        transform: translateY(-1px);
+    }
+
+    .button-secondary {
+        background: #f1f3f9;
+        color: #344054;
+    }
+
+    .button-small {
+        margin-top: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .info-card {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        background: #eef2ff;
+        border: 1px solid #dfe3ff;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .info-icon {
+        font-size: 28px;
+    }
+
+    .info-card h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+    }
+
+    .info-card p {
+        margin: 0;
+        color: #667085;
+        line-height: 1.5;
+    }
+
+    .mesas-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+    }
+
+    .mesa-card {
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 16px;
+        padding: 22px;
+        box-shadow: 0 3px 12px rgba(16, 24, 40, .06);
+    }
+
+    .mesa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .mesa-label {
+        display: block;
+        color: #667085;
+        font-size: 13px;
+        margin-bottom: 4px;
+    }
+
+    .mesa-header h2 {
+        margin: 0;
+        font-size: 21px;
+    }
+
+    .mesa-numero {
+        background: #f1f3f9;
+        color: #475467;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .campo-mesa {
+        margin-bottom: 18px;
+    }
+
+    .campo-mesa label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .nombre-mesa {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid #d0d5dd;
+        border-radius: 9px;
+        font-size: 15px;
+        outline: none;
+    }
+
+    .nombre-mesa:focus {
+        border-color: #635bff;
+        box-shadow: 0 0 0 3px rgba(99, 91, 255, .12);
+    }
+
+    .codigo-box,
+    .url-box {
+        background: #f8f9fc;
+        border-radius: 11px;
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+
+    .codigo-label {
+        display: block;
+        color: #667085;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 7px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .codigo {
+        display: block;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 4px;
+    }
+
+    .url {
+        color: #475467;
+        font-size: 13px;
+        word-break: break-all;
+    }
+
+    .mesa-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .empty-state {
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 16px;
+        padding: 55px 25px;
+        text-align: center;
+    }
+
+    .empty-icon {
+        font-size: 42px;
+        margin-bottom: 12px;
+    }
+
+    .empty-state h2 {
+        margin: 0 0 8px;
+    }
+
+    .empty-state p {
+        max-width: 500px;
+        margin: 0 auto 22px;
+        color: #667085;
+        line-height: 1.5;
+    }
+
+    @media (max-width: 800px) {
+
+        .page-header {
+            align-items: flex-start;
+            flex-direction: column;
         }
 
-    </script>
+        .page-actions {
+            justify-content: flex-start;
+        }
 
-    <script>
+        .mesas-grid {
+            grid-template-columns: 1fr;
+        }
 
-        async function guardarNombreMesa(boton) {
+    }
 
-            const mesaId = boton.dataset.mesaId;
+</style>
 
-            const input = document.querySelector(
-                `.nombre-mesa[data-mesa-id="${mesaId}"]`
+
+<script>
+
+    function copiarTexto(texto) {
+
+        navigator.clipboard.writeText(texto)
+            .then(function () {
+
+                alert("Copiado correctamente.");
+
+            })
+            .catch(function () {
+
+                alert("No fue posible copiar.");
+
+            });
+
+    }
+
+
+    async function guardarNombreMesa(boton) {
+
+        const mesaId = boton.dataset.mesaId;
+
+        const input = document.querySelector(
+            `.nombre-mesa[data-mesa-id="${mesaId}"]`
+        );
+
+        const nombre = input.value.trim();
+
+        boton.disabled = true;
+        boton.textContent = "Guardando...";
+
+        try {
+
+            const respuesta = await fetch(
+                "{% url 'actualizar_mesa' slug=evento.slug mesa_id=0 %}"
+                    .replace(
+                        "/0/",
+                        `/${mesaId}/`
+                    ),
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
+                    },
+
+                    body:
+                        `nombre=${encodeURIComponent(nombre)}`,
+                }
             );
 
-            const nombre = input.value.trim();
+            const resultado =
+                await respuesta.json();
 
-            boton.disabled = true;
-            boton.textContent = "Guardando...";
+            if (!respuesta.ok || !resultado.ok) {
 
-            try {
-
-                const respuesta = await fetch(
-                    "{% url 'actualizar_mesa' slug=evento.slug mesa_id=0 %}"
-                        .replace(
-                            "/0/",
-                            `/${mesaId}/`
-                        ),
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "X-CSRFToken":
-                                "{{ csrf_token }}",
-
-                            "Content-Type":
-                                "application/x-www-form-urlencoded",
-                        },
-
-                        body:
-                            `nombre=${encodeURIComponent(nombre)}`,
-                    }
+                throw new Error(
+                    resultado.error ||
+                    "No fue posible guardar el nombre."
                 );
-
-                const resultado =
-                    await respuesta.json();
-
-                if (!respuesta.ok || !resultado.ok) {
-
-                    throw new Error(
-                        "No fue posible guardar el nombre."
-                    );
-                }
-
-                boton.textContent = "✅ Guardado";
-
-                setTimeout(
-                    function () {
-                        boton.textContent =
-                            "💾 Guardar nombre";
-                    },
-                    1500
-                );
-
-            } catch (error) {
-
-                console.error(error);
-
-                alert(error.message);
-
-                boton.textContent =
-                    "💾 Guardar nombre";
-
-            } finally {
-
-                boton.disabled = false;
 
             }
+
+            boton.textContent = "✓ Guardado";
+
+            setTimeout(
+                function () {
+                    boton.textContent =
+                        "💾 Guardar nombre";
+                },
+                1500
+            );
+
+        } catch (error) {
+
+            console.error(error);
+
+            alert(error.message);
+
+            boton.textContent =
+                "💾 Guardar nombre";
+
+        } finally {
+
+            boton.disabled = false;
+
         }
 
-    </script>
+    }
 
-</body>
-</html>
+</script>
+
+{% endblock %}

@@ -1,280 +1,478 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
+{% extends "eventos/base.html" %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block title %}
+    Configurar mesas · {{ evento.nombre }}
+{% endblock %}
 
-    <title>Configurar mesas - {{ evento.nombre }}</title>
+{% block content %}
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            background: #f7f7f7;
-        }
+<div class="page-header">
 
-        .encabezado {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-
-        .volver {
-            color: #555;
-            text-decoration: none;
-        }
-
-        .seccion {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        .campo {
-            margin: 20px 0;
-        }
-
-        .campo label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-
-        .campo input {
-            width: 100%;
-            max-width: 200px;
-            box-sizing: border-box;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            font-size: 18px;
-        }
-
-        .info {
-            background: #f1f1f1;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-
-        .boton {
-            display: inline-block;
-            padding: 11px 18px;
-            border: 0;
-            border-radius: 8px;
-            background: #333;
-            color: white;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 15px;
-        }
-
-        .boton:hover {
-            opacity: 0.9;
-        }
-
-        .advertencia {
-            margin-top: 20px;
-            color: #8a4b00;
-        }
-    </style>
-</head>
-
-<body>
-
-    <div class="encabezado">
-
-        <div>
-            <h1>⚙️ Configurar mesas</h1>
-
-            <p>
-                {{ evento.nombre }}
-            </p>
-        </div>
+    <div>
 
         <a
-            href="{% url 'dashboard_evento' slug=evento.slug %}"
-            class="volver"
+            href="{% url 'mesas_dashboard' slug=evento.slug %}"
+            class="back-link"
         >
-            ← Volver al evento
+            ← Volver a mesas
+        </a>
+
+        <h1 class="page-title">
+            ⚙️ Configurar mesas
+        </h1>
+
+        <p class="page-subtitle">
+            {{ evento.nombre }}
+        </p>
+
+    </div>
+
+</div>
+
+
+<div class="config-card">
+
+    <div class="icon">
+        🪑
+    </div>
+
+    <h2>
+        ¿Cuántas mesas tendrá tu evento?
+    </h2>
+
+    <p class="descripcion">
+        Indica el número total de mesas que tendrá el evento.
+        Al aumentar la cantidad, EventPhotos creará automáticamente
+        las nuevas mesas y sus códigos QR.
+    </p>
+
+
+    <div class="estado">
+
+        <span>
+            Mesas actuales
+        </span>
+
+        <strong id="mesas-actuales">
+            {{ mesas|length }}
+        </strong>
+
+    </div>
+
+
+    <div class="campo">
+
+        <label for="numero_mesas">
+            Número de mesas
+        </label>
+
+        <input
+            type="number"
+            id="numero_mesas"
+            name="numero_mesas"
+            min="{{ mesas|length }}"
+            max="100"
+            value="{{ mesas|length }}"
+        >
+
+        <small>
+            Puedes agregar mesas hasta un máximo de 100.
+            Las mesas existentes no se eliminan desde esta pantalla.
+        </small>
+
+    </div>
+
+
+    <div
+        id="mensaje"
+        class="mensaje"
+        style="display: none;"
+    ></div>
+
+
+    <div class="acciones">
+
+        <button
+            type="button"
+            id="guardar"
+            class="button"
+        >
+            💾 Guardar mesas
+        </button>
+
+        <a
+            href="{% url 'mesas_dashboard' slug=evento.slug %}"
+            class="button button-secondary"
+        >
+            Cancelar
         </a>
 
     </div>
 
+</div>
 
-    <div class="seccion">
+
+<div class="info-card">
+
+    <div class="info-icon">
+        📱
+    </div>
+
+    <div>
+
+        <h2>
+            ¿Qué pasa después?
+        </h2>
 
         <p>
-            Este evento actualmente tiene
-            <strong>{{ mesas|length }}</strong>
-            mesa(s).
-        </p>
-
-
-        <div class="campo">
-
-            <label for="numero-mesas">
-                Número total de mesas
-            </label>
-
-            <input
-            type="number"
-            id="numero-mesas"
-            min="{{ mesas|length }}"
-            max="100"
-            value="{{ mesas|length }}"
-            data-actuales="{{ mesas|length }}"
-        >
-
-        </div>
-
-
-        <div class="info">
-
-            <strong>Importante</strong>
-
-            <p>
-                Las mesas que ya existen no serán modificadas.
-                Si aumentas el número de mesas, solamente se
-                crearán las mesas que hagan falta.
-            </p>
-
-        </div>
-
-
-        <button
-            type="button"
-            class="boton"
-            onclick="crearMesas()"
-        >
-            🪑 Crear mesas
-        </button>
-
-
-        <p class="advertencia">
-            Por ahora esta herramienta solamente permite
-            aumentar el número de mesas. La eliminación de
-            mesas la manejaremos por separado para evitar
-            borrar accidentalmente accesos o fotos.
+            Cada mesa tendrá un código QR único.
+            Después de configurar las mesas podrás asignarles nombres
+            y generar los QR para imprimirlos y colocarlos en el evento.
         </p>
 
     </div>
 
+</div>
 
-    <script>
 
-        async function crearMesas() {
+<style>
 
-            const input =
-                document.getElementById("numero-mesas");
+    .page-header {
+        margin-bottom: 28px;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 14px;
+        color: #667085;
+        text-decoration: none;
+        font-size: 14px;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 32px;
+    }
+
+    .page-subtitle {
+        margin: 8px 0 0;
+        color: #667085;
+    }
+
+    .config-card {
+        max-width: 700px;
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 3px 12px rgba(16, 24, 40, .06);
+    }
+
+    .icon {
+        font-size: 36px;
+        margin-bottom: 12px;
+    }
+
+    .config-card h2 {
+        margin: 0 0 10px;
+        font-size: 22px;
+    }
+
+    .descripcion {
+        color: #667085;
+        line-height: 1.55;
+        margin-bottom: 25px;
+    }
+
+    .estado {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8f9fc;
+        border-radius: 11px;
+        padding: 16px;
+        margin-bottom: 25px;
+    }
+
+    .estado span {
+        color: #667085;
+    }
+
+    .estado strong {
+        font-size: 24px;
+    }
+
+    .campo {
+        margin-bottom: 22px;
+    }
+
+    .campo label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+
+    .campo input {
+        width: 180px;
+        padding: 12px;
+        border: 1px solid #d0d5dd;
+        border-radius: 9px;
+        font-size: 18px;
+        outline: none;
+    }
+
+    .campo input:focus {
+        border-color: #635bff;
+        box-shadow: 0 0 0 3px rgba(99, 91, 255, .12);
+    }
+
+    .campo small {
+        display: block;
+        margin-top: 8px;
+        color: #667085;
+        line-height: 1.4;
+    }
+
+    .acciones {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 11px 16px;
+        border: 0;
+        border-radius: 10px;
+        background: #635bff;
+        color: white;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .button:hover {
+        opacity: .92;
+    }
+
+    .button:disabled {
+        opacity: .6;
+        cursor: wait;
+    }
+
+    .button-secondary {
+        background: #f1f3f9;
+        color: #344054;
+    }
+
+    .mensaje {
+        padding: 12px 14px;
+        border-radius: 9px;
+        margin-bottom: 20px;
+        font-size: 14px;
+    }
+
+    .mensaje.exito {
+        background: #ecfdf3;
+        color: #027a48;
+    }
+
+    .mensaje.error {
+        background: #fef3f2;
+        color: #b42318;
+    }
+
+    .info-card {
+        max-width: 700px;
+        display: flex;
+        gap: 15px;
+        align-items: flex-start;
+        margin-top: 20px;
+        background: #eef2ff;
+        border: 1px solid #dfe3ff;
+        border-radius: 14px;
+        padding: 20px;
+    }
+
+    .info-icon {
+        font-size: 27px;
+    }
+
+    .info-card h2 {
+        margin: 0 0 6px;
+        font-size: 17px;
+    }
+
+    .info-card p {
+        margin: 0;
+        color: #667085;
+        line-height: 1.5;
+    }
+
+    @media (max-width: 600px) {
+
+        .config-card {
+            padding: 22px;
+        }
+
+        .campo input {
+            width: 100%;
+        }
+
+    }
+
+</style>
+
+
+<script>
+
+    const botonGuardar =
+        document.getElementById("guardar");
+
+    const inputMesas =
+        document.getElementById("numero_mesas");
+
+    const mensaje =
+        document.getElementById("mensaje");
+
+    const mesasActuales =
+        document.getElementById("mesas-actuales");
+
+
+    function mostrarMensaje(texto, tipo) {
+
+        mensaje.textContent = texto;
+
+        mensaje.className =
+            "mensaje " + tipo;
+
+        mensaje.style.display = "block";
+
+    }
+
+
+    botonGuardar.addEventListener(
+        "click",
+        async function () {
 
             const numeroMesas =
-                parseInt(input.value, 10);
+                parseInt(
+                    inputMesas.value,
+                    10
+                );
 
-            if (!Number.isInteger(numeroMesas)) {
-
-                alert("Indica un número válido de mesas.");
-
-                return;
-            }
-
-            const mesasActuales =
-            parseInt(
-                document
-                    .getElementById("numero-mesas")
-                    .dataset.actuales,
-                10
+            const mesasMinimas = Number(
+                "{{ mesas|length }}"
             );
 
-            if (numeroMesas < mesasActuales) {
+            if (
+                Number.isNaN(numeroMesas) ||
+                numeroMesas < mesasMinimas ||
+                numeroMesas > 100
+            ) {
 
-                alert(
-                    "No puedes reducir el número de mesas desde aquí."
+                mostrarMensaje(
+                    "Introduce un número válido de mesas.",
+                    "error"
                 );
 
                 return;
+
             }
 
-            if (numeroMesas > 100) {
 
-                alert(
-                    "El máximo permitido es de 100 mesas."
-                );
+            botonGuardar.disabled = true;
+            botonGuardar.textContent =
+                "Guardando...";
 
-                return;
-            }
-
-            if (numeroMesas === mesasActuales) {
-
-                alert(
-                    "El evento ya tiene ese número de mesas."
-                );
-
-                return;
-            }
-
-            const confirmar = confirm(
-                `Se crearán ${numeroMesas - mesasActuales} mesa(s) nuevas. ¿Continuar?`
-            );
-
-            if (!confirmar) {
-                return;
-            }
 
             try {
 
-                const respuesta = await fetch(
-                    "{% url 'configurar_mesas' slug=evento.slug %}",
-                    {
-                        method: "POST",
+                const respuesta =
+                    await fetch(
+                        "{% url 'configurar_mesas' slug=evento.slug %}",
+                        {
+                            method: "POST",
 
-                        headers: {
-                            "X-CSRFToken":
-                                "{{ csrf_token }}",
+                            headers: {
+                                "X-CSRFToken":
+                                    "{{ csrf_token }}",
 
-                            "Content-Type":
-                                "application/x-www-form-urlencoded",
-                        },
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded",
+                            },
 
-                        body:
-                            `numero_mesas=${numeroMesas}`,
-                    }
-                );
+                            body:
+                                `numero_mesas=${numeroMesas}`,
+                        }
+                    );
+
 
                 const resultado =
                     await respuesta.json();
 
-                if (!respuesta.ok || !resultado.ok) {
+
+                if (
+                    !respuesta.ok ||
+                    !resultado.ok
+                ) {
 
                     throw new Error(
                         resultado.error ||
-                        "No fue posible crear las mesas."
+                        "No fue posible guardar las mesas."
                     );
+
                 }
 
-                alert(
-                    `Listo. El evento ahora tiene ${resultado.total_mesas} mesas.`
+
+                mesasActuales.textContent =
+                    resultado.total_mesas;
+
+                inputMesas.setAttribute(
+                    "min",
+                    resultado.total_mesas
                 );
 
-                window.location.reload();
+                inputMesas.value =
+                    resultado.total_mesas;
+
+
+                mostrarMensaje(
+                    `Configuración guardada. Ahora tienes ${resultado.total_mesas} mesas.`,
+                    "exito"
+                );
+
 
             } catch (error) {
 
                 console.error(error);
 
-                alert(error.message);
+                mostrarMensaje(
+                    error.message,
+                    "error"
+                );
+
+            } finally {
+
+                botonGuardar.disabled =
+                    false;
+
+                botonGuardar.textContent =
+                    "💾 Guardar mesas";
+
             }
+
         }
+    );
 
-    </script>
+</script>
 
-</body>
-</html>
+{% endblock %}
