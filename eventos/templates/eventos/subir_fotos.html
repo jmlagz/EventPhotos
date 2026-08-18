@@ -432,6 +432,7 @@
                     datos.append("nombre", foto.name);
                     datos.append("content_type", foto.type);
                     datos.append("hash_sha256", hash);
+                    datos.append("tamaño", foto.size);
 
                     const respuesta = await fetch(
                         "{% url 'solicitar_url_subida' slug=evento.slug token=mesa.token %}",

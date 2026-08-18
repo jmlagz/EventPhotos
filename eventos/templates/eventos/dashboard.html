@@ -11,54 +11,185 @@
     <title>Dashboard - EventPhotos</title>
 
     <style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 30px 20px;
+        background: #f7f7f7;
+        color: #222;
+    }
+
+    .encabezado {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+
+    .encabezado h1 {
+        margin: 0 0 8px 0;
+    }
+
+    .encabezado p {
+        margin: 0;
+        color: #666;
+    }
+
+    .salir {
+        color: #555;
+        text-decoration: none;
+    }
+
+    .salir:hover {
+        text-decoration: underline;
+    }
+
+    .resumen {
+        background: white;
+        padding: 25px;
+        margin-bottom: 30px;
+        border-radius: 14px;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .resumen h2 {
+        margin-top: 0;
+        margin-bottom: 20px;
+    }
+
+    .resumen-datos {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+    }
+
+    .dato {
+        background: #f7f7f7;
+        padding: 18px;
+        border-radius: 10px;
+    }
+
+    .dato-label {
+        display: block;
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 6px;
+    }
+
+    .dato-valor {
+        font-size: 22px;
+        font-weight: bold;
+    }
+
+    .barra-contenedor {
+        width: 100%;
+        height: 12px;
+        margin-top: 12px;
+        background: #e5e5e5;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .barra-progreso {
+        width: var(--progreso);
+        height: 100%;
+        background: #333;
+        border-radius: 10px;
+    }
+
+    .eventos-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    .evento {
+        background: white;
+        padding: 22px;
+        border-radius: 14px;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .evento h2 {
+        margin-top: 0;
+        margin-bottom: 18px;
+    }
+
+    .evento-info {
+        margin-bottom: 18px;
+    }
+
+    .evento-info p {
+        margin: 8px 0;
+    }
+
+    .metrica {
+        margin-top: 18px;
+    }
+
+    .metrica-cabecera {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 14px;
+    }
+
+    .metrica-titulo {
+        font-weight: bold;
+    }
+
+    .metrica-valor {
+        color: #555;
+    }
+
+    .boton {
+        display: inline-block;
+        margin-top: 18px;
+        padding: 10px 15px;
+        border-radius: 8px;
+        background: #333;
+        color: white;
+        text-decoration: none;
+    }
+
+    .boton:hover {
+        background: #222;
+    }
+
+    .vacio {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        color: #666;
+    }
+
+    @media (max-width: 700px) {
         body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            background: #f7f7f7;
+            padding: 20px 15px;
         }
 
         .encabezado {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
+            align-items: flex-start;
+            gap: 15px;
         }
 
-        .evento {
-            background: white;
-            padding: 20px;
-            margin-bottom: 15px;
-            border-radius: 12px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        .resumen-datos {
+            grid-template-columns: 1fr;
         }
 
-        .evento h2 {
-            margin-top: 0;
+        .eventos-grid {
+            grid-template-columns: 1fr;
         }
+    }
+</style>
 
-        .boton {
-            display: inline-block;
-            padding: 10px 15px;
-            border-radius: 8px;
-            background: #333;
-            color: white;
-            text-decoration: none;
-        }
 
-        .salir {
-            color: #555;
-            text-decoration: none;
-        }
-
-        .vacio {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            color: #666;
-        }
-    </style>
 </head>
 
 <body>
@@ -84,36 +215,155 @@
 
     <h2>Mis eventos</h2>
 
-    {% if eventos %}
+    <div class="resumen">
 
-        {% for evento in eventos %}
+        <h2>
+            ☁️ Almacenamiento de pruebas
+        </h2>
 
-            <div class="evento">
+        <div class="resumen-datos">
 
-                <h2>
-                    {{ evento.nombre }}
-                </h2>
+            <div class="dato">
 
-                <p>
-                    📅 {{ evento.fecha|date:"d/m/Y" }}
-                </p>
+                <span class="dato-label">
+                    Eventos
+                </span>
 
-                <p>
-                    🪑 {{ evento.mesas.count }} mesa(s)
-                    ·
-                    📸 {{ evento.fotos.count }} foto(s)
-                </p>
-
-                <a
-                    href="{% url 'dashboard_evento' slug=evento.slug %}"
-                    class="boton"
-                >
-                    Administrar evento
-                </a>
+                <span class="dato-valor">
+                    {{ total_eventos }}
+                </span>
 
             </div>
 
-        {% endfor %}
+            <div class="dato">
+
+                <span class="dato-label">
+                    Fotos
+                </span>
+
+                <span class="dato-valor">
+                    {{ total_fotos }}
+                </span>
+
+            </div>
+
+            <div class="dato">
+
+                <span class="dato-label">
+                    Almacenamiento
+                </span>
+
+                <span class="dato-valor">
+                    {{ almacenamiento_usado|filesizeformat }}
+                    /
+                    {{ max_storage_pruebas|filesizeformat }}
+                </span>
+
+                <div class="barra-contenedor">
+
+                    <div
+                        class="barra-progreso"
+                        style="--progreso: {{ porcentaje_almacenamiento }}%;"
+                    ></div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% if eventos %}
+
+        <div class="eventos-grid">
+
+            {% for evento in eventos %}
+
+                <div class="evento">
+
+                    <h2>
+                        {{ evento.nombre }}
+                    </h2>
+
+                    <div class="evento-info">
+
+                        <p>
+                            📅 {{ evento.fecha|date:"d/m/Y" }}
+                        </p>
+
+                        <p>
+                            🪑 {{ evento.mesas.count }} mesa(s)
+                        </p>
+
+                    </div>
+
+                    <div class="metrica">
+
+                        <div class="metrica-cabecera">
+
+                            <span class="metrica-titulo">
+                                📸 Fotos
+                            </span>
+
+                            <span class="metrica-valor">
+                                {{ evento.total_fotos }}
+                                /
+                                {{ 450 }}
+                            </span>
+
+                        </div>
+
+                        <div class="barra-contenedor">
+
+                            <div
+                                class="barra-progreso"
+                                style="--progreso: {{ evento.porcentaje_fotos }}%;"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="metrica">
+
+                        <div class="metrica-cabecera">
+
+                            <span class="metrica-titulo">
+                                💾 Almacenamiento
+                            </span>
+
+                            <span class="metrica-valor">
+                                {{ evento.almacenamiento_usado|filesizeformat }}
+                                /
+                                4 GB
+                            </span>
+
+                        </div>
+
+                        <div class="barra-contenedor">
+
+                            <div
+                                class="barra-progreso"
+                                style="--progreso: {{ evento.porcentaje_almacenamiento }}%;"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+                    <a
+                        href="{% url 'dashboard_evento' slug=evento.slug %}"
+                        class="boton"
+                    >
+                        Administrar evento
+                    </a>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
 
     {% else %}
 
@@ -124,4 +374,5 @@
     {% endif %}
 
 </body>
+
 </html>

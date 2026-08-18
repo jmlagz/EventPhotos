@@ -3,6 +3,16 @@ import secrets
 import io
 import qrcode
 
+
+from django.db.models import Sum
+
+from .limites import (
+    MAX_FOTOS_POR_EVENTO,
+    MAX_STORAGE_POR_EVENTO,
+    MAX_TAMANO_FOTO,
+    MAX_STORAGE_PRUEBAS,
+)
+
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.utils import timezone
@@ -326,6 +336,76 @@ def solicitar_url_subida(request, slug, token):
             status=400,
         )
 
+        # Verificamos el tamaño informado por el navegador
+        # como primera barrera. La validación definitiva
+        # se hará contra R2 al confirmar la subida.
+        tamaño = request.POST.get("tamaño", "").strip()
+
+        try:
+            tamaño = int(tamaño)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"error": "Tamaño de archivo inválido."},
+                status=400,
+            )
+
+        if tamaño <= 0:
+            return JsonResponse(
+                {"error": "El tamaño de la foto no es válido."},
+                status=400,
+            )
+
+        if tamaño > MAX_TAMANO_FOTO:
+            return JsonResponse(
+                {
+                    "error": (
+                        "La foto supera el tamaño máximo permitido "
+                        "de 15 MB."
+                    )
+                },
+                status=400,
+            )
+
+        # Contamos únicamente las fotos que siguen activas.
+        fotos_actuales = Foto.objects.filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        ).count()
+
+        if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado el límite "
+                        "de 450 fotos."
+                    )
+                },
+                status=400,
+            )
+
+        # Calculamos el almacenamiento actualmente utilizado.
+        almacenamiento_actual = (
+            Foto.objects
+            .filter(
+                evento=evento,
+                eliminada_at__isnull=True,
+            )
+            .aggregate(total=Sum("tamaño"))
+            .get("total")
+            or 0
+        )
+
+        if almacenamiento_actual + tamaño > MAX_STORAGE_POR_EVENTO:
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado su límite "
+                        "de almacenamiento."
+                    )
+                },
+                status=400,
+            )
+
     if len(hash_sha256) != 64:
         return JsonResponse(
             {"error": "Hash SHA-256 inválido."},
@@ -420,17 +500,27 @@ def confirmar_subida(request, slug, token):
     nombre = request.POST.get("nombre", "").strip()
     content_type = request.POST.get("content_type", "").strip()
     hash_sha256 = request.POST.get("hash_sha256", "").strip()
-    tamaño = request.POST.get("tamaño", "").strip()
 
     if not all([
         object_key,
         nombre,
         content_type,
         hash_sha256,
-        tamaño,
     ]):
         return JsonResponse(
             {"error": "Faltan datos para registrar la foto."},
+            status=400,
+        )
+
+    # El object_key debe pertenecer a este evento y esta mesa.
+    prefijo_esperado = (
+        f"eventos/{evento.slug}/"
+        f"mesas/{mesa.token}/"
+    )
+
+    if not object_key.startswith(prefijo_esperado):
+        return JsonResponse(
+            {"error": "Objeto de almacenamiento no válido."},
             status=400,
         )
 
@@ -448,6 +538,107 @@ def confirmar_subida(request, slug, token):
             }
         )
 
+    # Consultamos R2 para obtener el tamaño REAL del archivo.
+    try:
+        r2 = get_r2_client()
+
+        objeto = r2.head_object(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=object_key,
+        )
+
+        tamaño_real = objeto["ContentLength"]
+
+    except Exception:
+        return JsonResponse(
+            {
+                "error": (
+                    "No fue posible verificar la foto "
+                    "en el almacenamiento."
+                )
+            },
+            status=400,
+        )
+
+    # Verificamos nuevamente el tamaño máximo individual.
+    if tamaño_real > MAX_TAMANO_FOTO:
+        try:
+            r2.delete_object(
+                Bucket=settings.R2_BUCKET_NAME,
+                Key=object_key,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "error": (
+                    "La foto supera el tamaño máximo "
+                    "permitido de 15 MB."
+                )
+            },
+            status=400,
+        )
+
+    # Contamos las fotos activas actuales.
+    fotos_actuales = Foto.objects.filter(
+        evento=evento,
+        eliminada_at__isnull=True,
+    ).count()
+
+    if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
+        try:
+            r2.delete_object(
+                Bucket=settings.R2_BUCKET_NAME,
+                Key=object_key,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "error": (
+                    "Este evento ha alcanzado el límite "
+                    "de 450 fotos."
+                )
+            },
+            status=400,
+        )
+
+    # Calculamos el almacenamiento real actualmente utilizado.
+    almacenamiento_actual = (
+        Foto.objects
+        .filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+        .aggregate(total=Sum("tamaño"))
+        .get("total")
+        or 0
+    )
+
+    if (
+        almacenamiento_actual + tamaño_real
+        > MAX_STORAGE_POR_EVENTO
+    ):
+        try:
+            r2.delete_object(
+                Bucket=settings.R2_BUCKET_NAME,
+                Key=object_key,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "error": (
+                    "Este evento ha alcanzado su límite "
+                    "de almacenamiento."
+                )
+            },
+            status=400,
+        )
+
     uploader_hash = obtener_uploader_hash(request)
 
     foto = Foto.objects.create(
@@ -456,11 +647,11 @@ def confirmar_subida(request, slug, token):
         object_key=object_key,
         nombre_original=nombre,
         content_type=content_type,
-        tamaño=int(tamaño),
+        tamaño=tamaño_real,
         hash_sha256=hash_sha256,
         uploader_hash=uploader_hash,
         estado=Foto.Estado.APROBADA,
-    )   
+    )
 
     return JsonResponse(
         {
@@ -469,6 +660,7 @@ def confirmar_subida(request, slug, token):
             "mensaje": "Foto registrada correctamente.",
         }
     )
+
 
 @require_POST
 def eliminar_foto(request, slug, foto_id):
@@ -573,11 +765,66 @@ def album_publico(request, slug):
 def dashboard(request):
     eventos = eventos_del_usuario(request)
 
+    total_eventos = eventos.count()
+
+    total_fotos = Foto.objects.filter(
+        evento__in=eventos,
+        eliminada_at__isnull=True,
+    ).count()
+
+    almacenamiento_usado = (
+        Foto.objects.filter(
+            evento__in=eventos,
+            eliminada_at__isnull=True,
+        )
+        .aggregate(total=Sum("tamaño"))
+        .get("total")
+        or 0
+    )
+
+    porcentaje_almacenamiento = (
+        almacenamiento_usado
+        / MAX_STORAGE_PRUEBAS
+        * 100
+    )
+
+    for evento in eventos:
+        fotos_evento = Foto.objects.filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+
+        evento.total_fotos = fotos_evento.count()
+
+        evento.almacenamiento_usado = (
+            fotos_evento
+            .aggregate(total=Sum("tamaño"))
+            .get("total")
+            or 0
+        )
+
+        evento.porcentaje_fotos = (
+            evento.total_fotos
+            / MAX_FOTOS_POR_EVENTO
+            * 100
+        )
+
+        evento.porcentaje_almacenamiento = (
+            evento.almacenamiento_usado
+            / MAX_STORAGE_POR_EVENTO
+            * 100
+        )
+
     return render(
         request,
         "eventos/dashboard.html",
         {
             "eventos": eventos,
+            "total_eventos": total_eventos,
+            "total_fotos": total_fotos,
+            "almacenamiento_usado": almacenamiento_usado,
+            "porcentaje_almacenamiento": porcentaje_almacenamiento,
+            "max_storage_pruebas": MAX_STORAGE_PRUEBAS,
         },
     )
 
@@ -585,11 +832,41 @@ def dashboard(request):
 def dashboard_evento(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
 
+    fotos_actuales = Foto.objects.filter(
+        evento=evento,
+        eliminada_at__isnull=True,
+    )
+
+    total_fotos = fotos_actuales.count()
+
+    almacenamiento_usado = (
+        fotos_actuales
+        .aggregate(total=Sum("tamaño"))
+        .get("total")
+        or 0
+    )
+
+    porcentaje_fotos = (
+        total_fotos / MAX_FOTOS_POR_EVENTO * 100
+    )
+
+    porcentaje_almacenamiento = (
+        almacenamiento_usado
+        / MAX_STORAGE_POR_EVENTO
+        * 100
+    )
+
     return render(
         request,
         "eventos/dashboard_evento.html",
         {
             "evento": evento,
+            "total_fotos": total_fotos,
+            "almacenamiento_usado": almacenamiento_usado,
+            "porcentaje_fotos": porcentaje_fotos,
+            "porcentaje_almacenamiento": porcentaje_almacenamiento,
+            "max_fotos": MAX_FOTOS_POR_EVENTO,
+            "max_almacenamiento": MAX_STORAGE_POR_EVENTO,
         },
     )
 
