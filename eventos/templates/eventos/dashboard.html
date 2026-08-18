@@ -187,6 +187,27 @@
             grid-template-columns: 1fr;
         }
     }
+    .eventos-encabezado {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .eventos-encabezado h2 {
+        margin: 0;
+    }
+
+    .eventos-encabezado .boton {
+        margin-top: 0;
+    }
+
+    @media (max-width: 700px) {
+        .eventos-encabezado {
+            align-items: flex-start;
+            gap: 15px;
+        }
+    }
 </style>
 
 
@@ -213,7 +234,16 @@
 
     </div>
 
-    <h2>Mis eventos</h2>
+    <div class="eventos-encabezado">
+        <h2>Mis eventos</h2>
+
+        <a
+            href="{% url 'crear_evento' %}"
+            class="boton"
+        >
+            + Crear evento
+        </a>
+    </div>
 
     <div class="resumen">
 

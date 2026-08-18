@@ -4,7 +4,19 @@ import io
 import qrcode
 
 
+
 from django.db.models import Sum
+from django.contrib import messages
+from datetime import timedelta
+from django.core.mail import send_mail
+from django.urls import reverse
+
+from django.contrib.auth.views import (
+    PasswordResetView,
+    PasswordResetDoneView,
+    PasswordResetConfirmView,
+    PasswordResetCompleteView,
+)
 
 from .limites import (
     MAX_FOTOS_POR_EVENTO,
@@ -15,13 +27,20 @@ from .limites import (
 )
 
 from django.shortcuts import get_object_or_404, redirect, render
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.contrib.auth.views import (
+    PasswordResetView,
+    PasswordResetDoneView,
+    PasswordResetConfirmView,
+    PasswordResetCompleteView,
+)
+
+from .models import Evento, Mesa, Foto, InvitacionAnfitrion
 
 from .r2 import (
     get_r2_client,
@@ -30,7 +49,11 @@ from .r2 import (
     eliminar_objeto,
 )
 
-from .models import Evento, Mesa, Foto
+from .forms import (
+    EventoForm,
+    UsuarioEventoForm,
+    ActivarCuentaForm,
+)
 
 def obtener_uploader_hash(request):
     uploader_token = request.session.get("uploader_token")
@@ -42,6 +65,26 @@ def obtener_uploader_hash(request):
     return hashlib.sha256(
         uploader_token.encode("utf-8")
     ).hexdigest()
+
+password_reset_request = PasswordResetView.as_view(
+    template_name="eventos/password_reset.html",
+    email_template_name="eventos/password_reset_email.html",
+    subject_template_name="eventos/password_reset_subject.txt",
+    success_url="/password-reset/done/",
+)
+
+password_reset_done = PasswordResetDoneView.as_view(
+    template_name="eventos/password_reset_done.html",
+)
+
+password_reset_confirm = PasswordResetConfirmView.as_view(
+    template_name="eventos/password_reset_confirm.html",
+    success_url="/reset/done/",
+)
+
+password_reset_complete = PasswordResetCompleteView.as_view(
+    template_name="eventos/password_reset_complete.html",
+)
 
 def login_anfitrion(request):
     if request.user.is_authenticated:
@@ -852,6 +895,43 @@ def dashboard(request):
         },
     )
 
+@login_required
+def crear_evento(request):
+
+    if request.method == "POST":
+
+        form = EventoForm(request.POST)
+
+        if form.is_valid():
+
+            evento = form.save(commit=False)
+            evento.estado = Evento.Estado.DRAFT
+
+            evento.save()
+
+            # El usuario que crea el evento queda como anfitrión.
+            evento.anfitriones.add(request.user)
+
+            messages.success(
+                request,
+                "Evento creado correctamente."
+            )
+
+            return redirect(
+                "dashboard_evento",
+                slug=evento.slug,
+            )
+
+    else:
+        form = EventoForm()
+
+    return render(
+        request,
+        "eventos/crear_evento.html",
+        {
+            "form": form,
+        },
+    )
 
 @login_required
 def confirmar_personalizacion(request, slug):
@@ -1051,6 +1131,164 @@ def solicitar_url_personalizacion(request, slug):
         }
     )
 
+def activar_cuenta(request, token):
+
+    invitacion = get_object_or_404(
+        InvitacionAnfitrion,
+        token=token,
+    )
+
+    if invitacion.esta_usada:
+        return render(
+            request,
+            "eventos/invitacion_usada.html",
+            {
+                "invitacion": invitacion,
+            },
+        )
+
+    if invitacion.esta_expirada:
+        return render(
+            request,
+            "eventos/invitacion_expirada.html",
+            {
+                "invitacion": invitacion,
+            },
+        )
+
+    usuario = invitacion.usuario
+
+    if request.method == "POST":
+
+        form = ActivarCuentaForm(request.POST)
+
+        if form.is_valid():
+
+            usuario.set_password(
+                form.cleaned_data["password"]
+            )
+
+            usuario.is_active = True
+            usuario.save(
+                update_fields=[
+                    "password",
+                    "is_active",
+                ]
+            )
+
+            invitacion.usada_en = timezone.now()
+            invitacion.save(
+                update_fields=[
+                    "usada_en",
+                ]
+            )
+
+            login(
+                request,
+                usuario,
+            )
+
+            messages.success(
+                request,
+                "Tu cuenta fue activada correctamente.",
+            )
+
+            return redirect(
+                "dashboard",
+            )
+
+    else:
+        form = ActivarCuentaForm()
+
+    return render(
+        request,
+        "eventos/activar_cuenta.html",
+        {
+            "form": form,
+            "invitacion": invitacion,
+            "usuario": usuario,
+        },
+    )
+
+@login_required
+def crear_usuario_evento(request, slug):
+
+    if not request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para crear usuarios.",
+            status=403,
+        )
+
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+    )
+
+    if request.method == "POST":
+
+        form = UsuarioEventoForm(request.POST)
+
+        if form.is_valid():
+
+            usuario = form.save()
+
+            evento.anfitriones.add(usuario)
+
+            invitacion = InvitacionAnfitrion.objects.create(
+                usuario=usuario,
+                evento=evento,
+                expira_en=timezone.now() + timedelta(days=3),
+            )
+
+            # AQUÍ
+            enlace_activacion = request.build_absolute_uri(
+                reverse(
+                    "activar_cuenta",
+                    kwargs={
+                        "token": invitacion.token,
+                    },
+                )
+            )
+
+            send_mail(
+                subject="Activa tu cuenta de EventPhotos",
+                message=(
+                    f"Hola {usuario.first_name},\n\n"
+                    "Se creó una cuenta para ti en EventPhotos.\n\n"
+                    "Puedes activar tu cuenta y crear tu contraseña "
+                    "utilizando el siguiente enlace:\n\n"
+                    f"{enlace_activacion}\n\n"
+                    "Este enlace tiene una vigencia de 3 días.\n\n"
+                    "EventPhotos"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[usuario.email],
+            )
+
+            messages.success(
+                request,
+                (
+                    f"Anfitrión {usuario.username} creado "
+                    "y se generó una invitación."
+                ),
+            )
+
+            return redirect(
+                "dashboard_evento",
+                slug=evento.slug,
+            )
+
+    else:
+        form = UsuarioEventoForm()
+
+    return render(
+        request,
+        "eventos/crear_usuario_evento.html",
+        {
+            "form": form,
+            "evento": evento,
+        },
+    )
 
 @login_required
 def dashboard_evento(request, slug):
@@ -1392,7 +1630,7 @@ def eventos_del_usuario(request):
         return Evento.objects.all()
 
     return Evento.objects.filter(
-        propietario=request.user,
+        anfitriones=request.user,
     )
 
 def obtener_evento_del_usuario(request, slug):
@@ -1405,7 +1643,7 @@ def obtener_evento_del_usuario(request, slug):
     return get_object_or_404(
         Evento,
         slug=slug,
-        propietario=request.user,
+        anfitriones=request.user,
     )
 
 @login_required

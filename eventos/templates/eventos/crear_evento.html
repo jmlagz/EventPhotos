@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Crear evento - EventPhotos</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f7f7f7;
+            color: #222;
+        }
+
+        .encabezado {
+            margin-bottom: 30px;
+        }
+
+        .encabezado h1 {
+            margin: 0 0 8px 0;
+        }
+
+        .encabezado p {
+            margin: 0;
+            color: #666;
+        }
+
+        .volver {
+            display: inline-block;
+            margin-bottom: 18px;
+            color: #555;
+            text-decoration: none;
+        }
+
+        .volver:hover {
+            text-decoration: underline;
+        }
+
+        .tarjeta {
+            background: white;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .tarjeta h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+        }
+
+        .campo {
+            margin-bottom: 20px;
+        }
+
+        .campo label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: bold;
+        }
+
+        .campo input,
+        .campo select,
+        .campo textarea {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #d5d5d5;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 15px;
+            background: white;
+        }
+
+        .campo textarea {
+            resize: vertical;
+        }
+
+        .campo input:focus,
+        .campo select:focus,
+        .campo textarea:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .fila {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .opciones {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 5px;
+        }
+
+        .opcion {
+            background: #f7f7f7;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .opcion label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .opcion input {
+            width: auto;
+        }
+
+        .ayuda {
+            margin-top: 5px;
+            color: #777;
+            font-size: 13px;
+        }
+
+        .errores {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #fff0f0;
+            color: #a33;
+        }
+
+        .errores ul {
+            margin: 5px 0 0 20px;
+        }
+
+        .acciones {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .boton {
+            display: inline-block;
+            padding: 11px 17px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-size: 15px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .boton-secundario {
+            background: #e5e5e5;
+            color: #333;
+        }
+
+        .boton-secundario:hover {
+            background: #d8d8d8;
+        }
+
+        .boton-principal {
+            background: #333;
+            color: white;
+        }
+
+        .boton-principal:hover {
+            background: #222;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 20px 15px;
+            }
+
+            .tarjeta {
+                padding: 22px;
+            }
+
+            .fila,
+            .opciones {
+                grid-template-columns: 1fr;
+            }
+
+            .acciones {
+                flex-direction: column-reverse;
+            }
+
+            .boton {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="encabezado">
+
+        <a
+            href="{% url 'dashboard' %}"
+            class="volver"
+        >
+            ← Volver al dashboard
+        </a>
+
+        <h1>Crear evento</h1>
+
+        <p>
+            Crea un nuevo evento para comenzar a configurarlo.
+        </p>
+
+    </div>
+
+    <div class="tarjeta">
+
+        <h2>Información del evento</h2>
+
+        {% if form.non_field_errors %}
+            <div class="errores">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            <div class="campo">
+                {{ form.nombre.label_tag }}
+                {{ form.nombre }}
+
+                {% if form.nombre.errors %}
+                    <div class="errores">
+                        {{ form.nombre.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="fila">
+
+                <div class="campo">
+                    {{ form.tipo.label_tag }}
+                    {{ form.tipo }}
+
+                    {% if form.tipo.errors %}
+                        <div class="errores">
+                            {{ form.tipo.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="campo">
+                    {{ form.fecha.label_tag }}
+                    {{ form.fecha }}
+
+                    {% if form.fecha.errors %}
+                        <div class="errores">
+                            {{ form.fecha.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+            </div>
+
+            <div class="campo">
+                {{ form.descripcion.label_tag }}
+                {{ form.descripcion }}
+
+                <div class="ayuda">
+                    Una breve descripción del evento.
+                </div>
+
+                {% if form.descripcion.errors %}
+                    <div class="errores">
+                        {{ form.descripcion.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="campo">
+                {{ form.mensaje_bienvenida.label_tag }}
+                {{ form.mensaje_bienvenida }}
+
+                <div class="ayuda">
+                    Este mensaje podrá mostrarse a los invitados.
+                </div>
+
+                {% if form.mensaje_bienvenida.errors %}
+                    <div class="errores">
+                        {{ form.mensaje_bienvenida.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="fila">
+
+                <div class="campo">
+                    {{ form.color_principal.label_tag }}
+                    {{ form.color_principal }}
+                </div>
+
+                <div class="campo">
+                    {{ form.color_secundario.label_tag }}
+                    {{ form.color_secundario }}
+                </div>
+
+            </div>
+
+            <div class="campo">
+                {{ form.plantilla.label_tag }}
+                {{ form.plantilla }}
+            </div>
+
+            <div class="opciones">
+
+                <div class="opcion">
+                    <label>
+                        {{ form.permitir_videos }}
+                        {{ form.permitir_videos.label }}
+                    </label>
+                </div>
+
+                <div class="opcion">
+                    <label>
+                        {{ form.moderacion_activa }}
+                        {{ form.moderacion_activa.label }}
+                    </label>
+                </div>
+
+            </div>
+
+            <div class="acciones">
+
+                <a
+                    href="{% url 'dashboard' %}"
+                    class="boton boton-secundario"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    class="boton boton-principal"
+                >
+                    Crear evento
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</body>
+</html>

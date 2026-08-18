@@ -24,10 +24,12 @@ class Evento(models.Model):
     nombre = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
 
-    propietario = models.ForeignKey(
+
+
+    anfitriones = models.ManyToManyField(
         User,
-        on_delete=models.CASCADE,
-        related_name="eventos",
+        related_name="eventos_asignados",
+        blank=True,
     )
 
     tipo = models.CharField(
@@ -241,3 +243,53 @@ class Foto(models.Model):
                 name="unique_foto_por_evento",
             )
         ]
+class InvitacionAnfitrion(models.Model):
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="invitaciones_anfitrion",
+    )
+
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name="invitaciones_anfitrion",
+    )
+
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+    )
+
+    creada_en = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    expira_en = models.DateTimeField()
+
+    usada_en = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    def generar_token(self):
+        return secrets.token_urlsafe(32)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = self.generar_token()
+
+        super().save(*args, **kwargs)
+
+    @property
+    def esta_usada(self):
+        return self.usada_en is not None
+
+    @property
+    def esta_expirada(self):
+        from django.utils import timezone
+        return timezone.now() >= self.expira_en
+
+    def __str__(self):
+        return f"Invitación de {self.usuario.username} - {self.evento.nombre}"

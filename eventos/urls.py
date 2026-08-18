@@ -19,6 +19,30 @@ urlpatterns = [
     ),
 
     path(
+        "password-reset/",
+        views.password_reset_request,
+        name="password_reset",
+    ),
+
+    path(
+        "password-reset/done/",
+        views.password_reset_done,
+        name="password_reset_done",
+    ),
+
+    path(
+        "reset/<uidb64>/<token>/",
+        views.password_reset_confirm,
+        name="password_reset_confirm",
+    ),
+
+    path(
+        "reset/done/",
+        views.password_reset_complete,
+        name="password_reset_complete",
+    ),
+
+    path(
         "logout/",
         views.logout_anfitrion,
         name="logout_anfitrion",
@@ -28,6 +52,12 @@ urlpatterns = [
         "dashboard/",
         views.dashboard,
         name="dashboard",
+    ),
+
+    path(
+        "dashboard/eventos/crear/",
+        views.crear_evento,
+        name="crear_evento",
     ),
 
     path(
@@ -88,6 +118,12 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/usuario/crear/",
+        views.crear_usuario_evento,
+        name="crear_usuario_evento",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/fotos/",
         views.fotos_dashboard,
         name="fotos_dashboard",
@@ -145,5 +181,10 @@ urlpatterns = [
         "dashboard/eventos/<slug:slug>/personalizacion/confirmar/",
         views.confirmar_personalizacion,
         name="confirmar_personalizacion",
+    ),
+    path(
+        "activar-cuenta/<str:token>/",
+        views.activar_cuenta,
+        name="activar_cuenta",
     ),
 ]

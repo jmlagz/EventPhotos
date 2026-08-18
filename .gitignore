@@ -33,3 +33,5 @@ staticfiles/
 *.egg-info/
 dist/
 build/
+.vercel
+.env*

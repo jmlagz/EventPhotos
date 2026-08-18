@@ -431,6 +431,27 @@
 
     </div>
 
+    {% if request.user.is_superuser %}
+
+<div class="seccion">
+
+    <h2>👥 Anfitriones</h2>
+
+    <p>
+        Administra las personas que tienen acceso a este evento.
+    </p>
+
+    <a
+        href="{% url 'crear_usuario_evento' slug=evento.slug %}"
+        class="boton"
+    >
+        + Crear anfitrión
+    </a>
+
+</div>
+
+{% endif %}
+
 <script>
     const portadaInput =
         document.getElementById("portadaInput");

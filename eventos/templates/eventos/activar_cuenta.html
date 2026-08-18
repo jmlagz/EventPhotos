@@ -8,15 +8,20 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Iniciar sesión - EventPhotos</title>
+    <title>Activar cuenta - EventPhotos</title>
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
             max-width: 420px;
             margin: 0 auto;
             padding: 60px 20px;
             background: #f7f7f7;
+            color: #222;
         }
 
         .contenedor {
@@ -28,13 +33,15 @@
 
         h1 {
             text-align: center;
+            margin-top: 0;
             margin-bottom: 10px;
         }
 
         .subtitulo {
             text-align: center;
             color: #666;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
+            line-height: 1.5;
         }
 
         label {
@@ -46,7 +53,6 @@
 
         input {
             width: 100%;
-            box-sizing: border-box;
             padding: 13px;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -65,26 +71,23 @@
             cursor: pointer;
         }
 
-        .error {
-            margin-top: 20px;
+        .boton:hover {
+            background: #222;
+        }
+
+        .errores {
+            margin-bottom: 20px;
             padding: 12px;
             border-radius: 8px;
             background: #ffe5e5;
             color: #a00000;
         }
-        .recuperar {
-            margin-top: 18px;
-            text-align: center;
-        }
 
-        .recuperar a {
-            color: #555;
-            text-decoration: none;
+        .ayuda {
+            margin-top: 20px;
+            color: #666;
             font-size: 14px;
-        }
-
-        .recuperar a:hover {
-            text-decoration: underline;
+            line-height: 1.5;
         }
     </style>
 </head>
@@ -93,60 +96,52 @@
 
     <div class="contenedor">
 
-        <h1>EventPhotos</h1>
+        <h1>Activa tu cuenta</h1>
 
         <p class="subtitulo">
-            Panel del anfitrión
+            Hola {{ usuario.first_name }}.
+            <br>
+            Crea una contraseña para comenzar a utilizar EventPhotos.
         </p>
+
+        {% if form.non_field_errors %}
+            <div class="errores">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
 
         <form method="post">
 
             {% csrf_token %}
 
-            <label for="username">
-                Usuario
-            </label>
+            {% for field in form %}
 
-            <input
-                type="text"
-                id="username"
-                name="username"
-                autocomplete="username"
-                required
-            >
+                <label for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                </label>
 
-            <label for="password">
-                Contraseña
-            </label>
+                {{ field }}
 
-            <input
-                type="password"
-                id="password"
-                name="password"
-                autocomplete="current-password"
-                required
-            >
+                {% if field.errors %}
+                    <div class="errores">
+                        {{ field.errors }}
+                    </div>
+                {% endif %}
 
-            {% if error %}
-                <div class="error">
-                    {{ error }}
-                </div>
-            {% endif %}
+            {% endfor %}
 
             <button
                 type="submit"
                 class="boton"
             >
-                Iniciar sesión
+                Activar cuenta
             </button>
 
-            <p class="recuperar">
-                <a href="{% url 'password_reset' %}">
-                    ¿Olvidaste tu contraseña?
-                </a>
-            </p>
-
         </form>
+
+        <p class="ayuda">
+            Tu contraseña debe tener al menos 8 caracteres.
+        </p>
 
     </div>
 
