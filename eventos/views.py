@@ -110,7 +110,7 @@ def login_anfitrion(request):
             request,
             "eventos/login.html",
             {
-                "error": "Usuario o contraseña incorrectos.",
+                "error": "Usuario/Correo o contraseña incorrectos.",
             },
         )
 
@@ -1308,14 +1308,17 @@ def crear_usuario_evento(request, slug):
             send_mail(
                 subject="Activa tu cuenta de EventPhotos",
                 message=(
-                    f"Hola {usuario.first_name},\n\n"
-                    "Se creó una cuenta para ti en EventPhotos.\n\n"
-                    "Puedes activar tu cuenta y crear tu contraseña "
-                    "utilizando el siguiente enlace:\n\n"
-                    f"{enlace_activacion}\n\n"
-                    "Este enlace tiene una vigencia de 3 días.\n\n"
-                    "EventPhotos"
-                ),
+                        f"Hola {usuario.first_name},\n\n"
+                        "Se creó una cuenta para ti en EventPhotos.\n\n"
+                        "Tu correo electrónico también será tu nombre de usuario "
+                        "para iniciar sesión.\n\n"
+                        f"Usuario: {usuario.email}\n\n"
+                        "Puedes activar tu cuenta y crear tu contraseña "
+                        "utilizando el siguiente enlace:\n\n"
+                        f"{enlace_activacion}\n\n"
+                        "Este enlace tiene una vigencia de 3 días.\n\n"
+                        "EventPhotos"
+                    ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[usuario.email],
             )

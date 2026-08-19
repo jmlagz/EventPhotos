@@ -152,5 +152,46 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "EventPhotos <noreply@eventphotos.local>"
+EMAIL_BACKEND = "eventos.email_backend.EmailBackend"
+
+EMAIL_HOST = os.getenv(
+    "EMAIL_HOST",
+)
+
+EMAIL_PORT = int(
+    os.getenv(
+        "EMAIL_PORT",
+        "465",
+    )
+)
+
+EMAIL_USE_SSL = (
+    os.getenv(
+        "EMAIL_USE_SSL",
+        "True",
+    ).lower()
+    == "true"
+)
+
+EMAIL_USE_TLS = (
+    os.getenv(
+        "EMAIL_USE_TLS",
+        "False",
+    ).lower()
+    == "true"
+)
+
+EMAIL_HOST_USER = os.getenv(
+    "EMAIL_HOST_USER",
+)
+
+EMAIL_HOST_PASSWORD = os.getenv(
+    "EMAIL_HOST_PASSWORD",
+)
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "EventPhotos <event.photos@lotus-nest.com>",
+)
+
+

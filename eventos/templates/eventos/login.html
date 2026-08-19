@@ -37,6 +37,13 @@
             margin-bottom: 30px;
         }
 
+        .ayuda-usuario {
+            margin-top: -10px;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
         label {
             display: block;
             margin-top: 18px;
@@ -103,15 +110,20 @@
 
             {% csrf_token %}
 
-            <label for="username">
-                Usuario
+           <label for="username">
+                Nombre de usuario
             </label>
 
+            <p class="ayuda-usuario">
+                Tu correo electrónico es tu nombre de usuario.
+            </p>
+
             <input
-                type="text"
+                type="email"
                 id="username"
                 name="username"
                 autocomplete="username"
+                placeholder="tu-correo@ejemplo.com"
                 required
             >
 
