@@ -1404,6 +1404,80 @@ def dashboard_evento(request, slug):
     )
 
 @login_required
+def reabrir_evento(request, slug):
+    if request.method != "POST":
+        return redirect(
+            "dashboard_evento",
+            slug=slug,
+        )
+
+    evento = obtener_evento_del_usuario(
+        request,
+        slug,
+    )
+
+    if evento.estado != Evento.Estado.CLOSED:
+        messages.warning(
+            request,
+            "Solo se pueden reabrir eventos cerrados.",
+        )
+
+        return redirect(
+            "dashboard_evento",
+            slug=evento.slug,
+        )
+
+    evento.estado = Evento.Estado.ACTIVE
+    evento.save(update_fields=["estado", "updated_at"])
+
+    messages.success(
+        request,
+        "El evento fue reabierto correctamente.",
+    )
+
+    return redirect(
+        "dashboard_evento",
+        slug=evento.slug,
+    )
+
+@login_required
+def cerrar_evento(request, slug):
+    if request.method != "POST":
+        return redirect(
+            "dashboard_evento",
+            slug=slug,
+        )
+
+    evento = obtener_evento_del_usuario(
+        request,
+        slug,
+    )
+
+    if evento.estado != Evento.Estado.ACTIVE:
+        messages.warning(
+            request,
+            "Solo se pueden cerrar eventos activos.",
+        )
+
+        return redirect(
+            "dashboard_evento",
+            slug=evento.slug,
+        )
+
+    evento.estado = Evento.Estado.CLOSED
+    evento.save(update_fields=["estado", "updated_at"])
+
+    messages.success(
+        request,
+        "El evento fue cerrado correctamente.",
+    )
+
+    return redirect(
+        "dashboard_evento",
+        slug=evento.slug,
+    )
+
+@login_required
 def descargar_fotos_evento(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
 

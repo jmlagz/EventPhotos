@@ -118,6 +118,18 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/reabrir/",
+        views.reabrir_evento,
+        name="reabrir_evento",
+    ),
+
+    path(
+        "dashboard/eventos/<slug:slug>/cerrar/",
+        views.cerrar_evento,
+        name="cerrar_evento",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/descargar-fotos/",
         views.descargar_fotos_evento,
         name="descargar_fotos_evento",

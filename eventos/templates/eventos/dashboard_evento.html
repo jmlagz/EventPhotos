@@ -281,6 +281,64 @@
         transform: translateY(-1px);
     }
 
+    .reopen-event-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+
+        padding: 11px 18px;
+
+        background: #2563eb;
+        color: white;
+
+        border: none;
+        border-radius: 10px;
+
+        font-size: 14px;
+        font-weight: 600;
+
+        cursor: pointer;
+
+        transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+    }
+
+    .reopen-event-button:hover {
+        background: #1d4ed8;
+        transform: translateY(-1px);
+    }
+
+    .close-event-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+
+        padding: 11px 18px;
+
+        background: #dc2626;
+        color: white;
+
+        border: none;
+        border-radius: 10px;
+
+        font-size: 14px;
+        font-weight: 600;
+
+        cursor: pointer;
+
+        transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+    }
+
+    .close-event-button:hover {
+        background: #b91c1c;
+        transform: translateY(-1px);
+    }
+
 </style>
 
 {% endblock %}
@@ -537,6 +595,40 @@
                 {{ evento.get_estado_display }}
             </strong>
         </p>
+
+        {% if evento.estado == "closed" %}
+            <form
+                method="post"
+                action="{% url 'reabrir_evento' evento.slug %}"
+                style="margin-top: 12px;"
+            >
+                {% csrf_token %}
+
+                <button
+                    type="submit"
+                    class="reopen-event-button"
+                >
+                    🔓 Reabrir evento
+                </button>
+            </form>
+        {% endif %}
+
+        {% if evento.estado == "active" %}
+            <form
+                method="post"
+                action="{% url 'cerrar_evento' evento.slug %}"
+                style="margin-top: 12px;"
+            >
+                {% csrf_token %}
+
+                <button
+                    type="submit"
+                    class="close-event-button"
+                >
+                    🔒 Cerrar evento
+                </button>
+            </form>
+        {% endif %}
 
         <a
             href="{% url 'descargar_fotos_evento' evento.slug %}"
