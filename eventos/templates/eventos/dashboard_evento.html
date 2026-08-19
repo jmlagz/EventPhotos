@@ -376,7 +376,11 @@
 
     <div class="stats-grid">
 
-        <div class="card stat-card">
+        <a
+            href="{% url 'fotos_dashboard' slug=evento.slug %}"
+            class="card stat-card"
+            style="text-decoration: none; color: inherit;"
+        >
 
             <div class="stat-number">
                 {{ total_fotos }}
@@ -386,7 +390,18 @@
                 Fotos
             </div>
 
-        </div>
+            <div
+                style="
+                    margin-top: 10px;
+                    color: var(--color-primary);
+                    font-size: 13px;
+                    font-weight: 600;
+                "
+            >
+                📷 Administrar fotos →
+            </div>
+
+        </a>
 
 
         <div class="card stat-card">
