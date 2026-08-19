@@ -630,12 +630,24 @@
             </form>
         {% endif %}
 
-        <a
-            href="{% url 'descargar_fotos_evento' evento.slug %}"
-            class="download-all-button"
-        >
-            ⬇️ Descargar todas las fotos
-        </a>
+        <div class="buttons" style="margin-top: 10px;">
+
+            <a
+                href="{% url 'album_publico' slug=evento.slug %}"
+                class="button"
+                target="_blank"
+            >
+                🖼️ Ver álbum del evento
+            </a>
+
+            <a
+                href="{% url 'descargar_fotos_evento' evento.slug %}"
+                class="download-all-button"
+            >
+                ⬇️ Descargar todas las fotos
+            </a>
+
+        </div>
 
     </section>
 
