@@ -1,4 +1,4 @@
-{% load static %}
+﻿{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 
@@ -32,8 +32,6 @@
         rel="apple-touch-icon"
         href="{% static 'eventos/pwa/icons/apple-touch-icon.png' %}"
     >
-
-    <title>EventPhotos</title>
 
     <title>EventPhotos</title>
 
@@ -216,17 +214,17 @@
                 class="boton boton-instalar"
                 type="button"
             >
-                📲 Instalar EventPhotos
+                ðŸ“² Instalar EventPhotos
             </button>
 
             <div
                 id="instalacion-ios"
                 class="instalacion-ios"
             >
-                <h3>📲 Instalar EventPhotos</h3>
+                <h3>ðŸ“² Instalar EventPhotos</h3>
 
                 <p>
-                    1. Toca el botón <strong>Compartir</strong> de Safari.
+                    1. Toca el botÃ³n <strong>Compartir</strong> de Safari.
                 </p>
 
                 <p>
@@ -246,7 +244,7 @@
             <div class="paso">
 
                 <div class="icono">
-                    📱
+                    ðŸ“±
                 </div>
 
                 <h2>
@@ -254,7 +252,7 @@
                 </h2>
 
                 <p>
-                    Tus invitados escanean el código
+                    Tus invitados escanean el cÃ³digo
                     de su mesa desde su celular.
                 </p>
 
@@ -264,7 +262,7 @@
             <div class="paso">
 
                 <div class="icono">
-                    📸
+                    ðŸ“¸
                 </div>
 
                 <h2>
@@ -273,7 +271,7 @@
 
                 <p>
                     Cada invitado puede compartir
-                    fácilmente sus mejores momentos.
+                    fÃ¡cilmente sus mejores momentos.
                 </p>
 
             </div>
@@ -282,16 +280,16 @@
             <div class="paso">
 
                 <div class="icono">
-                    ☁️
+                    â˜ï¸
                 </div>
 
                 <h2>
-                    3. Disfruta la galería
+                    3. Disfruta la galerÃ­a
                 </h2>
 
                 <p>
-                    Todas las fotografías quedan
-                    reunidas en la galería del evento.
+                    Todas las fotografÃ­as quedan
+                    reunidas en la galerÃ­a del evento.
                 </p>
 
             </div>
@@ -302,7 +300,7 @@
         <footer>
 
             <p>
-                EventPhotos · creado por LuisArt
+                EventPhotos Â· creado por LuisArt
             </p>
 
             <p>
@@ -315,18 +313,41 @@
 <script>
     let eventoInstallPrompt = null;
 
-    const botonInstalar = document.getElementById("boton-instalar");
-    const instalacionIOS = document.getElementById("instalacion-ios");
+    const botonInstalar =
+        document.getElementById("boton-instalar");
+
+    const instalacionIOS =
+        document.getElementById("instalacion-ios");
 
     const esIOS =
-        /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+        /iphone|ipad|ipod/i.test(
+            window.navigator.userAgent
+        );
 
     const esStandalone =
-        window.matchMedia("(display-mode: standalone)").matches ||
+        window.matchMedia(
+            "(display-mode: standalone)"
+        ).matches ||
         window.navigator.standalone === true;
 
     if (!esStandalone) {
 
+        /*
+         * iOS:
+         * Safari no soporta beforeinstallprompt.
+         * Mostramos nuestro botón y las instrucciones.
+         */
+        if (esIOS) {
+
+            botonInstalar.style.display =
+                "inline-block";
+
+        }
+
+        /*
+         * Android / Chrome y navegadores
+         * compatibles con instalación PWA.
+         */
         window.addEventListener(
             "beforeinstallprompt",
             function (event) {
@@ -335,14 +356,35 @@
 
                 eventoInstallPrompt = event;
 
-                botonInstalar.style.display = "inline-block";
+                botonInstalar.style.display =
+                    "inline-block";
             }
         );
 
+        /*
+         * Un único listener para el botón.
+         */
         botonInstalar.addEventListener(
             "click",
             async function () {
 
+                /*
+                 * iOS
+                 */
+                if (esIOS) {
+
+                    botonInstalar.style.display =
+                        "none";
+
+                    instalacionIOS.style.display =
+                        "block";
+
+                    return;
+                }
+
+                /*
+                 * Android / Chrome
+                 */
                 if (!eventoInstallPrompt) {
                     return;
                 }
@@ -359,32 +401,21 @@
 
                 eventoInstallPrompt = null;
 
-                botonInstalar.style.display = "none";
+                botonInstalar.style.display =
+                    "none";
             }
         );
-
-        if (esIOS) {
-            botonInstalar.style.display = "inline-block";
-
-            botonInstalar.addEventListener(
-                "click",
-                function () {
-
-                    botonInstalar.style.display = "none";
-                    instalacionIOS.style.display = "block";
-
-                },
-                { once: true }
-            );
-        }
     }
 
     window.addEventListener(
         "appinstalled",
         function () {
 
-            botonInstalar.style.display = "none";
-            instalacionIOS.style.display = "none";
+            botonInstalar.style.display =
+                "none";
+
+            instalacionIOS.style.display =
+                "none";
 
             console.log(
                 "EventPhotos instalada correctamente."
@@ -395,3 +426,5 @@
 </body>
 
 </html>
+
+
