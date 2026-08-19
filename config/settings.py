@@ -40,6 +40,11 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+VERCEL_URL = os.getenv("VERCEL_URL")
+
+if VERCEL_URL:
+    ALLOWED_HOSTS.append(VERCEL_URL)
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
