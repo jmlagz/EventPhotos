@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 import io
+import zipfile
 import qrcode
 
 
@@ -47,6 +48,7 @@ from .r2 import (
     generar_url_lectura,
     generar_url_subida,
     eliminar_objeto,
+    obtener_objeto,
 )
 
 from .forms import (
@@ -1400,6 +1402,104 @@ def dashboard_evento(request, slug):
             "logo_url": logo_url,
         },
     )
+
+@login_required
+def descargar_fotos_evento(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    fotos = (
+        Foto.objects
+        .filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+        .select_related("mesa")
+        .order_by("mesa__numero", "creada_en")
+    )
+
+    if not fotos.exists():
+        return HttpResponse(
+            "Este evento no tiene fotos para descargar.",
+            status=404,
+        )
+
+    archivo_zip = io.BytesIO()
+
+    with zipfile.ZipFile(
+        archivo_zip,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+    ) as zip_file:
+
+        nombres_usados = set()
+
+        for foto in fotos:
+            objeto = obtener_objeto(foto.object_key)
+
+            contenido = objeto["Body"].read()
+
+            nombre_mesa = (
+                foto.mesa.nombre.strip()
+                if foto.mesa and foto.mesa.nombre
+                else f"Mesa {foto.mesa.numero}"
+            )
+
+            nombre_archivo = foto.nombre_original
+
+            ruta_zip = f"{nombre_mesa}/{nombre_archivo}"
+
+            if ruta_zip in nombres_usados:
+                base, extension = nombre_archivo.rsplit(
+                    ".",
+                    1,
+                ) if "." in nombre_archivo else (
+                    nombre_archivo,
+                    "",
+                )
+
+                contador = 2
+
+                while True:
+                    nuevo_nombre = (
+                        f"{base}_{contador}"
+                        f".{extension}"
+                        if extension
+                        else f"{base}_{contador}"
+                    )
+
+                    nueva_ruta = (
+                        f"{nombre_mesa}/{nuevo_nombre}"
+                    )
+
+                    if nueva_ruta not in nombres_usados:
+                        ruta_zip = nueva_ruta
+                        break
+
+                    contador += 1
+
+            nombres_usados.add(ruta_zip)
+
+            zip_file.writestr(
+                ruta_zip,
+                contenido,
+            )
+
+    archivo_zip.seek(0)
+
+    nombre_zip = (
+        f"{evento.nombre} - Fotos.zip"
+    )
+
+    respuesta = HttpResponse(
+        archivo_zip.getvalue(),
+        content_type="application/zip",
+    )
+
+    respuesta["Content-Disposition"] = (
+        f'attachment; filename="{nombre_zip}"'
+    )
+
+    return respuesta
 
 @login_required
 def fotos_dashboard(request, slug):

@@ -44,3 +44,10 @@ def eliminar_objeto(object_key):
         Bucket=settings.R2_BUCKET_NAME,
         Key=object_key,
     )
+def obtener_objeto(object_key):
+    r2 = get_r2_client()
+
+    return r2.get_object(
+        Bucket=settings.R2_BUCKET_NAME,
+        Key=object_key,
+    )

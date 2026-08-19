@@ -253,6 +253,33 @@
         }
 
     }
+    .download-all-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+
+        margin-top: 8px;
+        padding: 11px 18px;
+
+        background: #111827;
+        color: white;
+
+        border-radius: 10px;
+        text-decoration: none;
+
+        font-size: 14px;
+        font-weight: 600;
+
+        transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+    }
+
+    .download-all-button:hover {
+        background: #1f2937;
+        transform: translateY(-1px);
+    }
 
 </style>
 
@@ -510,6 +537,13 @@
                 {{ evento.get_estado_display }}
             </strong>
         </p>
+
+        <a
+            href="{% url 'descargar_fotos_evento' evento.slug %}"
+            class="download-all-button"
+        >
+            ⬇️ Descargar todas las fotos
+        </a>
 
     </section>
 

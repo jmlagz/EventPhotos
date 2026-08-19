@@ -118,6 +118,12 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/descargar-fotos/",
+        views.descargar_fotos_evento,
+        name="descargar_fotos_evento",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/usuario/crear/",
         views.crear_usuario_evento,
         name="crear_usuario_evento",
@@ -187,4 +193,5 @@ urlpatterns = [
         views.activar_cuenta,
         name="activar_cuenta",
     ),
+
 ]
