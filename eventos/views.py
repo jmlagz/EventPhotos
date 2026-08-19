@@ -174,6 +174,19 @@ def mesa_publica(request, slug, token):
         activa=True,
     )
 
+    # Evento cerrado:
+    # no permite iniciar ni continuar el flujo de subida.
+    # Se muestra directamente la página de agradecimiento.
+    if evento.estado == Evento.Estado.CLOSED:
+        return render(
+            request,
+            "eventos/evento_cerrado.html",
+            {
+                "evento": evento,
+                "mesa": mesa,
+            },
+        )
+
     # Si ya tenemos una sesión autorizada para esta mesa,
     # no necesitamos pedir nuevamente el código.
     if request.session.get("mesa_id") == mesa.id:
@@ -199,7 +212,6 @@ def mesa_publica(request, slug, token):
         },
     )
 
-
 def verificar_acceso(request, slug, token):
     evento = get_object_or_404(
         Evento,
@@ -209,6 +221,15 @@ def verificar_acceso(request, slug, token):
             Evento.Estado.CLOSED,
         ],
     )
+
+    if evento.estado == Evento.Estado.CLOSED:
+        return render(
+            request,
+            "eventos/evento_cerrado.html",
+            {
+                "evento": evento,
+            },
+        )
 
     mesa = get_object_or_404(
         Mesa,
@@ -264,6 +285,15 @@ def instrucciones(request, slug, token):
             Evento.Estado.CLOSED,
         ],
     )
+
+    if evento.estado == Evento.Estado.CLOSED:
+        return render(
+            request,
+            "eventos/evento_cerrado.html",
+            {
+                "evento": evento,
+            },
+        )
 
     mesa = get_object_or_404(
         Mesa,
@@ -321,6 +351,15 @@ def subir_fotos(request, slug, token):
         ],
     )
 
+    if evento.estado == Evento.Estado.CLOSED:
+        return render(
+            request,
+            "eventos/evento_cerrado.html",
+            {
+                "evento": evento,
+            },
+        )
+
     mesa = get_object_or_404(
         Mesa,
         evento=evento,
@@ -363,6 +402,13 @@ def solicitar_url_subida(request, slug, token):
             Evento.Estado.CLOSED,
         ],
     )
+
+    # Los eventos cerrados ya no aceptan nuevas fotos.
+    if evento.estado == Evento.Estado.CLOSED:
+        return JsonResponse(
+            {"error": "Este evento ya está cerrado y no acepta nuevas fotos."},
+            status=403,
+        )
 
     mesa = get_object_or_404(
         Mesa,
@@ -535,6 +581,13 @@ def confirmar_subida(request, slug, token):
             Evento.Estado.CLOSED,
         ],
     )
+
+    # Los eventos cerrados ya no aceptan nuevas fotos.
+    if evento.estado == Evento.Estado.CLOSED:
+        return JsonResponse(
+            {"error": "Este evento ya está cerrado y no acepta nuevas fotos."},
+            status=403,
+        )
 
     mesa = get_object_or_404(
         Mesa,

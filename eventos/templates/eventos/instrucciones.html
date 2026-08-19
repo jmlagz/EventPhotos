@@ -2,109 +2,262 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antes de subir fotos - {{ evento.nombre }}</title>
 
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            line-height: 1.6;
-        }
 
-        .tarjeta {
-            border: 1px solid #ddd;
-            border-radius: 16px;
-            padding: 25px;
-        }
+:root {
+    --primary: #635bff;
+    --primary-2: #7c4dff;
+    --text: #172033;
+    --muted: #667085;
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --border: #e7e9f0;
+    --shadow: 0 18px 45px rgba(31, 41, 55, .10);
+}
 
-        .boton {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            margin-top: 20px;
-            border: 0;
-            border-radius: 10px;
-            background: #333;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
+* { box-sizing: border-box; }
 
-        .check {
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            margin-top: 20px;
-        }
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+}
 
-        .check input {
-            margin-top: 5px;
-        }
+.topbar {
+    height: 74px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 6%;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 17px;
+}
+
+.brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    box-shadow: 0 8px 18px rgba(99, 91, 255, .25);
+}
+
+.page {
+    width: min(720px, calc(100% - 32px));
+    margin: 42px auto 70px;
+}
+
+.hero {
+    color: #fff;
+    text-align: center;
+    padding: 34px 24px 32px;
+    border-radius: 28px 28px 0 0;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
+
+.camera-icon {
+    width: 74px;
+    height: 74px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 23px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.25);
+    font-size: 37px;
+}
+
+.hero h1 {
+    margin: 0;
+    font-size: clamp(30px, 6vw, 42px);
+    line-height: 1.05;
+    letter-spacing: -.8px;
+}
+
+.hero p {
+    margin: 10px 0 0;
+    font-size: 17px;
+    font-weight: 600;
+    opacity: .92;
+}
+
+.card {
+    background: var(--card);
+    padding: 32px;
+    border-radius: 0 0 28px 28px;
+    box-shadow: var(--shadow);
+}
+
+.footer {
+    text-align: center;
+    color: #8a92a3;
+    font-size: 13px;
+    margin-top: 30px;
+}
+
+.footer strong { color: #4b5565; }
+
+button,
+.primary-button {
+    font: inherit;
+}
+
+@media (max-width: 600px) {
+    .topbar { padding: 0 20px; }
+    .page {
+        width: min(100% - 20px, 720px);
+        margin-top: 22px;
+    }
+    .hero {
+        padding: 28px 18px 25px;
+        border-radius: 22px 22px 0 0;
+    }
+    .card {
+        padding: 24px 18px;
+        border-radius: 0 0 22px 22px;
+    }
+}
+
+.instructions-card h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+}
+
+.subtitle {
+    margin: 0 0 25px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.info-box {
+    padding: 18px;
+    border-radius: 16px;
+    background: #f7f7ff;
+    border: 1px solid #e7e4ff;
+    margin-bottom: 20px;
+}
+
+.info-box p {
+    margin: 0 0 12px;
+    color: #4b5565;
+    line-height: 1.55;
+}
+
+.info-box p:last-child { margin-bottom: 0; }
+
+.check {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-top: 22px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fbfcff;
+    cursor: pointer;
+}
+
+.check input {
+    width: 19px;
+    height: 19px;
+    margin: 2px 0 0;
+    accent-color: var(--primary);
+    flex: 0 0 auto;
+}
+
+.check span {
+    color: var(--text);
+    line-height: 1.45;
+    font-weight: 650;
+}
+
+.primary-button {
+    display: block;
+    width: 100%;
+    padding: 16px 20px;
+    margin-top: 18px;
+    border: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(99,91,255,.22);
+}
     </style>
 </head>
 
 <body>
 
-    <div class="tarjeta">
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark">E</div>
+        <span>EventPhotos</span>
+    </div>
+</header>
 
-        <h1>📸 Antes de subir tus fotos</h1>
+<main class="page">
+    <section class="hero">
+        <div class="camera-icon">📸</div>
+        <h1>{{ evento.nombre }}</h1>
+        <p>{{ mesa.etiqueta }}</p>
+    </section>
 
-        <h2>{{ evento.nombre }}</h2>
-
-        <p>
-            Estás compartiendo fotos desde
-            <strong>{{ mesa.etiqueta }}</strong>.
+    <section class="card instructions-card">
+        <h2>Antes de compartir tus fotos</h2>
+        <p class="subtitle">
+            Solo necesitamos que confirmes que estás listo para compartir
+            tus fotos con los invitados de este evento.
         </p>
 
-        <p>
-            Puedes seleccionar varias fotos al mismo tiempo
-            desde tu teléfono.
-        </p>
-
-        <p>
-            Las fotos que compartas formarán parte del álbum
-            de este evento.
-        </p>
-
-        <p>
-            Por favor, comparte únicamente fotos apropiadas
-            para todos los asistentes.
-        </p>
+        <div class="info-box">
+            <p>📱 Puedes seleccionar varias fotos al mismo tiempo desde tu teléfono.</p>
+            <p>🖼️ Las fotos que compartas formarán parte del álbum del evento.</p>
+            <p>🤝 Por favor, comparte únicamente fotos apropiadas para todos los asistentes.</p>
+        </div>
 
         <form method="post">
-
             {% csrf_token %}
 
             <label class="check">
-
                 <input
                     type="checkbox"
                     name="acepto"
                     required
                 >
-
                 <span>
-                    Entiendo y quiero compartir mis fotos
-                    en este evento.
+                    Entiendo y quiero compartir mis fotos en este evento.
                 </span>
-
             </label>
 
-            <button class="boton" type="submit">
-                Continuar
+            <button class="primary-button" type="submit">
+                Continuar →
             </button>
-
         </form>
+    </section>
 
-    </div>
+    
+<div class="footer">
+    EventPhotos · creado por <strong>LuisArt</strong><br>
+    jmlagz@gmail.com
+</div>
+
+</main>
 
 </body>
 </html>

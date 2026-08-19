@@ -2,59 +2,260 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acceso - {{ evento.nombre }}</title>
+
+    <style>
+
+:root {
+    --primary: #635bff;
+    --primary-2: #7c4dff;
+    --text: #172033;
+    --muted: #667085;
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --border: #e7e9f0;
+    --shadow: 0 18px 45px rgba(31, 41, 55, .10);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+}
+
+.topbar {
+    height: 74px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 6%;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 17px;
+}
+
+.brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    box-shadow: 0 8px 18px rgba(99, 91, 255, .25);
+}
+
+.page {
+    width: min(720px, calc(100% - 32px));
+    margin: 42px auto 70px;
+}
+
+.hero {
+    color: #fff;
+    text-align: center;
+    padding: 34px 24px 32px;
+    border-radius: 28px 28px 0 0;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
+
+.camera-icon {
+    width: 74px;
+    height: 74px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 23px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.25);
+    font-size: 37px;
+}
+
+.hero h1 {
+    margin: 0;
+    font-size: clamp(30px, 6vw, 42px);
+    line-height: 1.05;
+    letter-spacing: -.8px;
+}
+
+.hero p {
+    margin: 10px 0 0;
+    font-size: 17px;
+    font-weight: 600;
+    opacity: .92;
+}
+
+.card {
+    background: var(--card);
+    padding: 32px;
+    border-radius: 0 0 28px 28px;
+    box-shadow: var(--shadow);
+}
+
+.footer {
+    text-align: center;
+    color: #8a92a3;
+    font-size: 13px;
+    margin-top: 30px;
+}
+
+.footer strong { color: #4b5565; }
+
+button,
+.primary-button {
+    font: inherit;
+}
+
+@media (max-width: 600px) {
+    .topbar { padding: 0 20px; }
+    .page {
+        width: min(100% - 20px, 720px);
+        margin-top: 22px;
+    }
+    .hero {
+        padding: 28px 18px 25px;
+        border-radius: 22px 22px 0 0;
+    }
+    .card {
+        padding: 24px 18px;
+        border-radius: 0 0 22px 22px;
+    }
+}
+
+.access-card {
+    text-align: center;
+}
+
+.intro {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.55;
+    margin: 0 auto 26px;
+    max-width: 480px;
+}
+
+.code-label {
+    display: block;
+    text-align: left;
+    font-weight: 750;
+    margin-bottom: 9px;
+}
+
+.code-input {
+    width: 100%;
+    padding: 16px 18px;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    background: #fbfcff;
+    color: var(--text);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    text-align: center;
+    outline: none;
+    transition: .2s;
+}
+
+.code-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(99,91,255,.12);
+}
+
+.primary-button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 16px 20px;
+    border: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(99,91,255,.22);
+}
+
+.error {
+    margin: 0 0 20px;
+    padding: 13px 15px;
+    border-radius: 12px;
+    background: #fff1f1;
+    color: #b42318;
+    border: 1px solid #ffd6d6;
+    font-weight: 650;
+}
+    </style>
 </head>
 
 <body>
 
-    <h1>{{ evento.nombre }}</h1>
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark">E</div>
+        <span>EventPhotos</span>
+    </div>
+</header>
 
-    <h2>{{ mesa.etiqueta }}</h2>
+<main class="page">
+    <section class="hero">
+        <div class="camera-icon">📸</div>
+        <h1>{{ evento.nombre }}</h1>
+        <p>{{ mesa.etiqueta }}</p>
+    </section>
 
-    <p>
-        Introduce el código que aparece junto al código QR.
-    </p>
-
-    {% if error %}
-        <p>
-            ❌ {{ error }}
+    <section class="card access-card">
+        <p class="intro">
+            Introduce el código de acceso que aparece junto al código QR
+            de tu mesa para continuar.
         </p>
-    {% endif %}
 
-    <form method="post">
+        {% if error %}
+            <div class="error">❌ {{ error }}</div>
+        {% endif %}
 
-        {% csrf_token %}
+        <form method="post">
+            {% csrf_token %}
 
-        <label for="codigo">
-            Código de acceso
-        </label>
+            <label class="code-label" for="codigo">
+                Código de acceso
+            </label>
 
-        <br><br>
+            <input
+                class="code-input"
+                type="text"
+                id="codigo"
+                name="codigo"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                minlength="6"
+                autocomplete="one-time-code"
+                required
+            >
 
-        <input
-            type="text"
-            id="codigo"
-            name="codigo"
-            inputmode="numeric"
-            pattern="[0-9]{6}"
-            maxlength="6"
-            minlength="6"
-            autocomplete="one-time-code"
-            required
-        >
+            <button class="primary-button" type="submit">
+                Continuar →
+            </button>
+        </form>
+    </section>
 
-        <br><br>
+    
+<div class="footer">
+    EventPhotos · creado por <strong>LuisArt</strong><br>
+    jmlagz@gmail.com
+</div>
 
-        <button type="submit">
-            Continuar
-        </button>
-
-    </form>
+</main>
 
 </body>
 </html>

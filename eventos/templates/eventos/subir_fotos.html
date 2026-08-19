@@ -2,154 +2,339 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Subir fotos - {{ evento.nombre }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compartir fotos - {{ evento.nombre }}</title>
 
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 25px 15px;
-        }
 
-        .encabezado {
-            text-align: center;
-        }
+:root {
+    --primary: #635bff;
+    --primary-2: #7c4dff;
+    --text: #172033;
+    --muted: #667085;
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --border: #e7e9f0;
+    --shadow: 0 18px 45px rgba(31, 41, 55, .10);
+}
 
-        .selector {
-            display: block;
-            width: 100%;
-            padding: 18px;
-            margin-top: 25px;
-            border: 2px dashed #aaa;
-            border-radius: 14px;
-            background: #fafafa;
-            cursor: pointer;
-            font-size: 18px;
-            text-align: center;
-        }
+* { box-sizing: border-box; }
 
-        .selector input {
-            display: none;
-        }
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+}
 
-        .contador {
-            margin-top: 20px;
-            font-weight: bold;
-            text-align: center;
-        }
+.topbar {
+    height: 74px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 6%;
+}
 
-        .galeria {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 20px;
-        }
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 17px;
+}
 
-        .foto {
-            aspect-ratio: 1;
-            border-radius: 10px;
-            overflow: hidden;
-            background: #eee;
-        }
+.brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    box-shadow: 0 8px 18px rgba(99, 91, 255, .25);
+}
 
-        .foto img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+.page {
+    width: min(720px, calc(100% - 32px));
+    margin: 42px auto 70px;
+}
 
-        .mensaje {
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 8px;
-            background: #f1f1f1;
-        }
+.hero {
+    color: #fff;
+    text-align: center;
+    padding: 34px 24px 32px;
+    border-radius: 28px 28px 0 0;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
 
-        .boton {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin-top: 25px;
-            border: 0;
-            border-radius: 10px;
-            background: #333;
-            color: white;
-            font-size: 17px;
-        }
+.camera-icon {
+    width: 74px;
+    height: 74px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 23px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.25);
+    font-size: 37px;
+}
 
-        .boton:disabled {
-            opacity: 0.5;
-        }
+.hero h1 {
+    margin: 0;
+    font-size: clamp(30px, 6vw, 42px);
+    line-height: 1.05;
+    letter-spacing: -.8px;
+}
 
-        @media (min-width: 600px) {
-            .galeria {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
+.hero p {
+    margin: 10px 0 0;
+    font-size: 17px;
+    font-weight: 600;
+    opacity: .92;
+}
+
+.card {
+    background: var(--card);
+    padding: 32px;
+    border-radius: 0 0 28px 28px;
+    box-shadow: var(--shadow);
+}
+
+.footer {
+    text-align: center;
+    color: #8a92a3;
+    font-size: 13px;
+    margin-top: 30px;
+}
+
+.footer strong { color: #4b5565; }
+
+button,
+.primary-button {
+    font: inherit;
+}
+
+@media (max-width: 600px) {
+    .topbar { padding: 0 20px; }
+    .page {
+        width: min(100% - 20px, 720px);
+        margin-top: 22px;
+    }
+    .hero {
+        padding: 28px 18px 25px;
+        border-radius: 22px 22px 0 0;
+    }
+    .card {
+        padding: 24px 18px;
+        border-radius: 0 0 22px 22px;
+    }
+}
+
+.upload-card {
+    text-align: center;
+}
+
+.upload-title {
+    margin: 0;
+    font-size: 26px;
+}
+
+.upload-subtitle {
+    margin: 8px 0 24px;
+    color: var(--muted);
+}
+
+.selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 145px;
+    width: 100%;
+    padding: 24px;
+    border: 2px dashed #c8c5ff;
+    border-radius: 20px;
+    background: #fafaff;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 800;
+    transition: .2s;
+}
+
+.selector:hover {
+    border-color: var(--primary);
+    background: #f5f4ff;
+    transform: translateY(-1px);
+}
+
+.selector input {
+    display: none;
+}
+
+.selector-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.selector-icon {
+    font-size: 34px;
+}
+
+.selector-help {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.contador {
+    margin-top: 18px;
+    color: var(--muted);
+    font-weight: 750;
+}
+
+.galeria {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.foto {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #eee;
+    box-shadow: 0 5px 15px rgba(16,24,40,.08);
+}
+
+.foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mensaje {
+    margin-top: 20px;
+    padding: 13px 15px;
+    border-radius: 12px;
+    background: #f5f7fb;
+    color: var(--text);
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+.boton {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin-top: 24px;
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    color: white;
+    font-size: 17px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(99,91,255,.22);
+    transition: .2s;
+}
+
+.boton:not(:disabled):hover {
+    transform: translateY(-1px);
+}
+
+.boton:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+@media (max-width: 600px) {
+    .galeria {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 380px) {
+    .galeria {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
     </style>
 </head>
 
 <body>
 
-    <div class="encabezado">
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark">E</div>
+        <span>EventPhotos</span>
+    </div>
+</header>
 
-        <h1>📸 Comparte tus fotos</h1>
+<main class="page">
+    <section class="hero">
+        <div class="camera-icon">📸</div>
+        <h1>{{ evento.nombre }}</h1>
+        <p>{{ mesa.etiqueta }}</p>
+    </section>
 
-        <h2>{{ evento.nombre }}</h2>
-
-        <p>
-            {{ mesa.etiqueta }}
+    <section class="card upload-card">
+        <h2 class="upload-title">Comparte tus fotos</h2>
+        <p class="upload-subtitle">
+            Selecciona hasta 20 fotos para compartir con los invitados.
         </p>
 
-    </div>
+        <label class="selector">
+            <span class="selector-content">
+                <span class="selector-icon">📷</span>
+                <span>Seleccionar fotos</span>
+                <span class="selector-help">JPG, PNG, HEIC o HEIF · hasta 20 fotos</span>
+            </span>
 
-    <label class="selector">
+            <input
+                type="file"
+                id="selectorFotos"
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                multiple
+            >
+        </label>
 
-        📷 Seleccionar fotos
+        <div id="contador" class="contador">
+            0 de 20 fotos seleccionadas
+        </div>
 
-        <input
-            type="file"
-            id="selectorFotos"
-            accept="image/jpeg,image/png,image/heic,image/heif"
-            multiple
+        <div
+            id="mensaje"
+            class="mensaje"
+            style="display: none;"
+        ></div>
+
+        <div id="galeria" class="galeria"></div>
+
+        <button
+            id="botonSubir"
+            class="boton"
+            type="button"
+            disabled
         >
+            🚀 Compartir fotos
+        </button>
+    </section>
 
-    </label>
+    
+<div class="footer">
+    EventPhotos · creado por <strong>LuisArt</strong><br>
+    jmlagz@gmail.com
+</div>
 
-    <div
-        id="contador"
-        class="contador"
-    >
-        0 de 20 fotos seleccionadas
-    </div>
-
-    <div
-        id="mensaje"
-        class="mensaje"
-        style="display: none;"
-    ></div>
-
-    <div
-        id="galeria"
-        class="galeria"
-    ></div>
-
-    <button
-        id="botonSubir"
-        class="boton"
-        type="button"
-        disabled
-    >
-        🚀 Subir fotos
-    </button>
-
+</main>
 
     <script>
 
@@ -595,6 +780,5 @@
         });
 
     </script>
-
 </body>
 </html>

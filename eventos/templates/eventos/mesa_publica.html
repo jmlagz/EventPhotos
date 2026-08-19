@@ -2,29 +2,273 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
     <title>{{ evento.nombre }} - {{ mesa.etiqueta }}</title>
+
+    <style>
+        :root {
+            --primary: #635bff;
+            --primary-dark: #5148e8;
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #e8eaf0;
+            --shadow: 0 18px 45px rgba(31, 41, 55, 0.10);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top right, rgba(99, 91, 255, 0.13), transparent 30%),
+                linear-gradient(180deg, #f8f9ff 0%, var(--bg) 100%);
+        }
+
+        .encabezado {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.82);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(14px);
+        }
+
+        .marca {
+            width: min(960px, 100%);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .marca-icono {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 11px;
+            color: white;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            box-shadow: 0 7px 18px rgba(99, 91, 255, 0.28);
+        }
+
+        main {
+            width: min(760px, 100%);
+            margin: 0 auto;
+            padding: 42px 20px 30px;
+            flex: 1;
+        }
+
+        .tarjeta {
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero {
+            padding: 42px 28px 34px;
+            text-align: center;
+            color: white;
+            background: linear-gradient(135deg, #635bff 0%, #7c5cff 55%, #8b5cf6 100%);
+        }
+
+        .icono {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 22px;
+            font-size: 36px;
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(10px);
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(27px, 6vw, 38px);
+            line-height: 1.15;
+        }
+
+        .mesa {
+            margin-top: 8px;
+            font-size: 17px;
+            opacity: 0.9;
+        }
+
+        .contenido {
+            padding: 30px;
+            text-align: center;
+        }
+
+        .mensaje {
+            margin: 0 auto 10px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .descripcion {
+            max-width: 520px;
+            margin: 0 auto 26px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .acciones {
+            display: grid;
+            gap: 12px;
+        }
+
+        .boton {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            min-height: 52px;
+            padding: 12px 18px;
+            border-radius: 15px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 750;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .boton:hover {
+            transform: translateY(-2px);
+        }
+
+        .boton-principal {
+            color: white;
+            background: linear-gradient(135deg, var(--primary), #7c5cff);
+            box-shadow: 0 10px 24px rgba(99, 91, 255, 0.25);
+        }
+
+        .boton-principal:hover {
+            box-shadow: 0 14px 30px rgba(99, 91, 255, 0.32);
+        }
+
+        .boton-secundario {
+            color: var(--text);
+            background: #f7f7fb;
+            border: 1px solid var(--border);
+        }
+
+        .pie {
+            padding: 24px 20px 30px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .pie strong {
+            color: var(--text);
+        }
+
+        .pie-correo {
+            margin-top: 4px;
+            font-size: 12px;
+        }
+
+        @media (max-width: 600px) {
+            main {
+                padding: 24px 14px 20px;
+            }
+
+            .hero {
+                padding: 34px 20px 28px;
+            }
+
+            .contenido {
+                padding: 24px 18px;
+            }
+
+            .tarjeta {
+                border-radius: 22px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-    <h1>{{ evento.nombre }}</h1>
+    <header class="encabezado">
+        <div class="marca">
+            <span class="marca-icono">E</span>
+            <span>EventPhotos</span>
+        </div>
+    </header>
 
-    <h2>{{ mesa.etiqueta }}</h2>
+    <main>
+        <section class="tarjeta">
 
-    <p>
-        📸 Comparte las fotos de este evento.
-    </p>
+            <div class="hero">
+                <div class="icono">📸</div>
 
-    <p>
-        Para comenzar, necesitamos confirmar que estás
-        en esta mesa.
-    </p>
+                <h1>{{ evento.nombre }}</h1>
 
-    <a href="{% url 'verificar_acceso' evento.slug mesa.token %}">
-        📸 Subir fotos
-    </a>
+                <div class="mesa">
+                    {{ mesa.etiqueta }}
+                </div>
+            </div>
+
+            <div class="contenido">
+
+                <p class="mensaje">
+                    Comparte las fotos de este evento
+                </p>
+
+                <p class="descripcion">
+                    Para comenzar, necesitamos confirmar que estás
+                    en esta mesa. Después podrás compartir tus fotos
+                    y consultar el álbum del evento.
+                </p>
+
+                <div class="acciones">
+
+                    <a
+                        class="boton boton-principal"
+                        href="{% url 'verificar_acceso' evento.slug mesa.token %}"
+                    >
+                        📸 Subir fotos
+                    </a>
+
+                    <a
+                        class="boton boton-secundario"
+                        href="{% url 'album_publico' slug=evento.slug %}"
+                    >
+                        🖼️ Ver álbum del evento
+                    </a>
+
+                </div>
+
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="pie">
+        <div>EventPhotos · creado por <strong>LuisArt</strong></div>
+        <div class="pie-correo">jmlagz@gmail.com</div>
+    </footer>
 
 </body>
 </html>
