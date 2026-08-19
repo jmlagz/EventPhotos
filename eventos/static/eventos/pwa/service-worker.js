@@ -1,9 +1,12 @@
-const CACHE_NAME = "eventphotos-static-v1";
+﻿const CACHE_NAME = "eventphotos-static-v2";
 
 const STATIC_ASSETS = [
     "/static/eventos/pwa/manifest.json",
     "/static/eventos/pwa/icons/eventphotos-icon-192.png",
-    "/static/eventos/pwa/icons/eventphotos-icon-512.png"
+    "/static/eventos/pwa/icons/eventphotos-icon-512.png",
+    "/static/eventos/pwa/icons/eventphotos-icon-192-maskable.png",
+    "/static/eventos/pwa/icons/eventphotos-icon-512-maskable.png",
+    "/static/eventos/pwa/icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -39,9 +42,7 @@ self.addEventListener("fetch", (event) => {
         return;
     }
 
-    if (
-        url.pathname.startsWith("/static/eventos/pwa/")
-    ) {
+    if (url.pathname.startsWith("/static/eventos/pwa/")) {
         event.respondWith(
             caches.match(request).then((cachedResponse) => {
                 return cachedResponse || fetch(request);
