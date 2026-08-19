@@ -9,8 +9,9 @@ import qrcode
 from django.db.models import Sum
 from django.contrib import messages
 from datetime import timedelta
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.urls import reverse
+from django.template.loader import render_to_string
 
 from django.contrib.auth.views import (
     PasswordResetView,
@@ -1305,23 +1306,43 @@ def crear_usuario_evento(request, slug):
                 )
             )
 
-            send_mail(
-                subject="Activa tu cuenta de EventPhotos",
-                message=(
-                        f"Hola {usuario.first_name},\n\n"
-                        "Se creó una cuenta para ti en EventPhotos.\n\n"
-                        "Tu correo electrónico también será tu nombre de usuario "
-                        "para iniciar sesión.\n\n"
-                        f"Usuario: {usuario.email}\n\n"
-                        "Puedes activar tu cuenta y crear tu contraseña "
-                        "utilizando el siguiente enlace:\n\n"
-                        f"{enlace_activacion}\n\n"
-                        "Este enlace tiene una vigencia de 3 días.\n\n"
-                        "EventPhotos"
-                    ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[usuario.email],
+            mensaje_texto = (
+                f"Hola {usuario.first_name},\n\n"
+                "Se ha creado una cuenta para ti en EventPhotos "
+                "como anfitrión de un evento.\n\n"
+                f"Evento: {evento.nombre}\n\n"
+                "Tu correo electrónico también será tu nombre de usuario "
+                "para iniciar sesión.\n\n"
+                f"Usuario: {usuario.email}\n\n"
+                "Puedes activar tu cuenta y crear tu contraseña "
+                "utilizando el siguiente enlace:\n\n"
+                f"{enlace_activacion}\n\n"
+                "Este enlace tiene una vigencia de 3 días.\n\n"
+                "EventPhotos"
             )
+
+            mensaje_html = render_to_string(
+                "eventos/invitacion_anfitrion.html",
+                {
+                    "usuario": usuario,
+                    "evento": evento,
+                    "enlace_activacion": enlace_activacion,
+                },
+            )
+
+            correo = EmailMultiAlternatives(
+                subject="Activa tu cuenta de EventPhotos",
+                body=mensaje_texto,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[usuario.email],
+            )
+
+            correo.attach_alternative(
+                mensaje_html,
+                "text/html",
+            )
+
+            correo.send()
 
             messages.success(
                 request,
