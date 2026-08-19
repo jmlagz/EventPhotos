@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Crear usuario - EventPhotos</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f7f7f7;
+        }
+
+        .encabezado {
+            margin-bottom: 25px;
+        }
+
+        .volver {
+            color: #555;
+            text-decoration: none;
+        }
+
+        .seccion {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .descripcion {
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .campo {
+            margin-bottom: 18px;
+        }
+
+        .campo-label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: bold;
+        }
+
+        .campo input[type="text"],
+        .campo input[type="email"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .ayuda {
+            margin-top: 5px;
+            color: #777;
+            font-size: 14px;
+        }
+
+        .rol-opciones {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .rol-opcion {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        .rol-opcion:hover {
+            border-color: #777;
+        }
+
+        .rol-opcion input {
+            margin-right: 8px;
+        }
+
+        .rol-titulo {
+            font-weight: bold;
+        }
+
+        .rol-descripcion {
+            display: block;
+            margin-top: 5px;
+            margin-left: 23px;
+            color: #777;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .eventos-seccion {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .eventos-lista {
+            margin-top: 12px;
+        }
+
+        .evento-opcion {
+            display: block;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        .evento-opcion:hover {
+            border-color: #777;
+        }
+
+        .evento-opcion input {
+            margin-right: 8px;
+        }
+
+        .errores {
+            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #ffe5e5;
+            color: #a00000;
+        }
+
+        .error-campo {
+            margin-top: 6px;
+            color: #a00000;
+            font-size: 14px;
+        }
+
+        .botones {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .boton {
+            display: inline-block;
+            padding: 11px 16px;
+            border: 0;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .boton-secundario {
+            background: #e5e5e5;
+            color: #333;
+        }
+
+        @media (max-width: 600px) {
+
+            .seccion {
+                padding: 22px;
+            }
+
+            .rol-opciones {
+                flex-direction: column;
+            }
+
+            .botones {
+                flex-direction: column;
+            }
+
+            .boton {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="encabezado">
+
+        <a
+            href="{% url 'dashboard' %}"
+            class="volver"
+        >
+            ← Volver al dashboard
+        </a>
+
+    </div>
+
+    <div class="seccion">
+
+        <h1>Crear usuario</h1>
+
+        <p class="descripcion">
+            Crea un nuevo usuario para EventPhotos.
+            Puedes crear un administrador o un anfitrión.
+            El usuario recibirá una invitación para crear
+            su contraseña y activar su cuenta.
+        </p>
+
+        {% if form.non_field_errors %}
+            <div class="errores">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            <!-- Nombre -->
+
+            <div class="campo">
+
+                <label
+                    for="{{ form.first_name.id_for_label }}"
+                    class="campo-label"
+                >
+                    Nombre
+                </label>
+
+                {{ form.first_name }}
+
+                {% if form.first_name.errors %}
+                    <div class="error-campo">
+                        {{ form.first_name.errors }}
+                    </div>
+                {% endif %}
+
+            </div>
+
+
+            <!-- Apellidos -->
+
+            <div class="campo">
+
+                <label
+                    for="{{ form.last_name.id_for_label }}"
+                    class="campo-label"
+                >
+                    Apellidos
+                </label>
+
+                {{ form.last_name }}
+
+                {% if form.last_name.errors %}
+                    <div class="error-campo">
+                        {{ form.last_name.errors }}
+                    </div>
+                {% endif %}
+
+            </div>
+
+
+            <!-- Correo -->
+
+            <div class="campo">
+
+                <label
+                    for="{{ form.email.id_for_label }}"
+                    class="campo-label"
+                >
+                    Correo electrónico
+                </label>
+
+                {{ form.email }}
+
+                {% if form.email.errors %}
+                    <div class="error-campo">
+                        {{ form.email.errors }}
+                    </div>
+                {% endif %}
+
+                <div class="ayuda">
+                    Este correo también será el nombre de usuario.
+                </div>
+
+            </div>
+
+
+            <!-- Rol -->
+
+            <div class="campo">
+
+                <span class="campo-label">
+                    Rol
+                </span>
+
+                <div class="rol-opciones">
+
+                    {% for radio in form.rol %}
+
+                        <label class="rol-opcion">
+
+                            {{ radio.tag }}
+
+                            <span class="rol-titulo">
+                                {{ radio.choice_label }}
+                            </span>
+
+                            {% if radio.data.value == "admin" %}
+
+                                <span class="rol-descripcion">
+                                    Acceso al dashboard general y a todos
+                                    los eventos.
+                                </span>
+
+                            {% else %}
+
+                                <span class="rol-descripcion">
+                                    Puede administrar únicamente los
+                                    eventos que tenga asignados.
+                                </span>
+
+                            {% endif %}
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
+
+                {% if form.rol.errors %}
+                    <div class="error-campo">
+                        {{ form.rol.errors }}
+                    </div>
+                {% endif %}
+
+            </div>
+
+
+            <!-- Eventos -->
+
+            <div
+                class="eventos-seccion"
+                id="eventos-seccion"
+            >
+
+                <span class="campo-label">
+                    Eventos asignados
+                </span>
+
+                <div class="ayuda">
+                    Selecciona uno o varios eventos que podrá administrar
+                    este anfitrión.
+                </div>
+
+                <div class="eventos-lista">
+
+                    {% for checkbox in form.eventos %}
+
+                        <label class="evento-opcion">
+
+                            {{ checkbox.tag }}
+
+                            {{ checkbox.choice_label }}
+
+                        </label>
+
+                    {% empty %}
+
+                        <div class="ayuda">
+                            No hay eventos disponibles.
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+                {% if form.eventos.errors %}
+                    <div class="error-campo">
+                        {{ form.eventos.errors }}
+                    </div>
+                {% endif %}
+
+            </div>
+
+
+            <!-- Botones -->
+
+            <div class="botones">
+
+                <button
+                    type="submit"
+                    class="boton"
+                >
+                    Crear usuario
+                </button>
+
+                <a
+                    href="{% url 'dashboard' %}"
+                    class="boton boton-secundario"
+                >
+                    Cancelar
+                </a>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+    <script>
+
+        function actualizarEventos() {
+
+            const rolSeleccionado =
+                document.querySelector(
+                    'input[name="rol"]:checked'
+                );
+
+            const eventosSeccion =
+                document.getElementById(
+                    "eventos-seccion"
+                );
+
+            if (!rolSeleccionado) {
+                eventosSeccion.style.display = "none";
+                return;
+            }
+
+            if (rolSeleccionado.value === "admin") {
+
+                eventosSeccion.style.display = "none";
+
+            } else {
+
+                eventosSeccion.style.display = "block";
+
+            }
+        }
+
+
+        document
+            .querySelectorAll('input[name="rol"]')
+            .forEach(function (radio) {
+
+                radio.addEventListener(
+                    "change",
+                    actualizarEventos
+                );
+
+            });
+
+
+        actualizarEventos();
+
+    </script>
+
+</body>
+</html>

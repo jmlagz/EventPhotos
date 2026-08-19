@@ -42,7 +42,13 @@ from django.contrib.auth.views import (
     PasswordResetCompleteView,
 )
 
-from .models import Evento, Mesa, Foto, InvitacionAnfitrion
+from .models import (
+    Evento,
+    Mesa,
+    Foto,
+    InvitacionAnfitrion,
+    InvitacionUsuario,
+)
 
 from .r2 import (
     get_r2_client,
@@ -54,7 +60,7 @@ from .r2 import (
 
 from .forms import (
     EventoForm,
-    UsuarioEventoForm,
+    UsuarioForm,
     ActivarCuentaForm,
 )
 
@@ -90,12 +96,40 @@ password_reset_complete = PasswordResetCompleteView.as_view(
 )
 
 def login_anfitrion(request):
+
     if request.user.is_authenticated:
-        return redirect("dashboard")
+
+        if request.user.is_superuser:
+            return redirect("dashboard")
+
+        eventos = Evento.objects.filter(
+            anfitriones=request.user,
+        )
+
+        if eventos.count() == 1:
+
+            evento = eventos.first()
+
+            return redirect(
+                "dashboard_evento",
+                slug=evento.slug,
+            )
+
+        return redirect("dashboard_anfitrion")
+
 
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
-        password = request.POST.get("password", "")
+
+        username = request.POST.get(
+            "username",
+            "",
+        ).strip()
+
+        password = request.POST.get(
+            "password",
+            "",
+        )
+
 
         usuario = authenticate(
             request,
@@ -103,17 +137,48 @@ def login_anfitrion(request):
             password=password,
         )
 
+
         if usuario is not None:
-            login(request, usuario)
-            return redirect("dashboard")
+
+            login(
+                request,
+                usuario,
+            )
+
+
+            if usuario.is_superuser:
+                return redirect("dashboard")
+
+
+            eventos = Evento.objects.filter(
+                anfitriones=usuario,
+            )
+
+
+            if eventos.count() == 1:
+
+                evento = eventos.first()
+
+                return redirect(
+                    "dashboard_evento",
+                    slug=evento.slug,
+                )
+
+
+            return redirect(
+                "dashboard_anfitrion",
+            )
+
 
         return render(
             request,
             "eventos/login.html",
             {
-                "error": "Usuario/Correo o contraseña incorrectos.",
+                "error":
+                    "Usuario/Correo o contraseña incorrectos.",
             },
         )
+
 
     return render(
         request,
@@ -161,6 +226,7 @@ def evento_publico(request, slug):
     )
 
 def mesa_publica(request, slug, token):
+
     evento = get_object_or_404(
         Evento,
         slug=slug,
@@ -179,7 +245,6 @@ def mesa_publica(request, slug, token):
 
     # Evento cerrado:
     # no permite iniciar ni continuar el flujo de subida.
-    # Se muestra directamente la página de agradecimiento.
     if evento.estado == Evento.Estado.CLOSED:
         return render(
             request,
@@ -190,19 +255,77 @@ def mesa_publica(request, slug, token):
             },
         )
 
-    # Si ya tenemos una sesión autorizada para esta mesa,
-    # no necesitamos pedir nuevamente el código.
-    if request.session.get("mesa_id") == mesa.id:
+    # Si la sesión ya está autorizada y ya aceptó
+    # las instrucciones, puede ir directamente a subir fotos.
+    if (
+        request.session.get("mesa_id") == mesa.id
+        and request.session.get("instrucciones_aceptadas")
+    ):
+        return redirect(
+            "subir_fotos",
+            slug=evento.slug,
+            token=mesa.token,
+        )
+
+    if request.method == "POST":
+
+        codigo = request.POST.get(
+            "codigo",
+            "",
+        ).strip()
+
+        acepto = request.POST.get("acepto")
+
+        errores = []
+
+        # Si todavía no existe una sesión autorizada,
+        # debemos comprobar el código.
+        if request.session.get("mesa_id") != mesa.id:
+
+            if codigo != mesa.codigo_acceso:
+                errores.append(
+                    "El código de acceso no es correcto."
+                )
+
+        # El consentimiento siempre debe existir.
+        if acepto != "on":
+            errores.append(
+                "Debes confirmar que entiendes y aceptas "
+                "compartir tus fotos."
+            )
+
+        if not errores:
+
+            # Solo rotamos la sesión cuando estamos
+            # autorizando una mesa por primera vez.
+            if request.session.get("mesa_id") != mesa.id:
+
+                request.session.cycle_key()
+
+                request.session["mesa_id"] = mesa.id
+                request.session["evento_id"] = evento.id
+
+                # La sesión durará 4 horas.
+                request.session.set_expiry(
+                    60 * 60 * 4
+                )
+
+            request.session["instrucciones_aceptadas"] = True
+
+            return redirect(
+                "subir_fotos",
+                slug=evento.slug,
+                token=mesa.token,
+            )
+
         return render(
             request,
-            "eventos/mesa_autorizada.html",
+            "eventos/mesa_publica.html",
             {
                 "evento": evento,
                 "mesa": mesa,
-                "instrucciones_aceptadas": request.session.get(
-                    "instrucciones_aceptadas",
-                    False,
-                ),
+                "errores": errores,
+                "codigo_ingresado": codigo,
             },
         )
 
@@ -212,74 +335,12 @@ def mesa_publica(request, slug, token):
         {
             "evento": evento,
             "mesa": mesa,
+            "errores": [],
+            "codigo_ingresado": "",
         },
     )
 
-def verificar_acceso(request, slug, token):
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-        estado__in=[
-            Evento.Estado.ACTIVE,
-            Evento.Estado.CLOSED,
-        ],
-    )
-
-    if evento.estado == Evento.Estado.CLOSED:
-        return render(
-            request,
-            "eventos/evento_cerrado.html",
-            {
-                "evento": evento,
-            },
-        )
-
-    mesa = get_object_or_404(
-        Mesa,
-        evento=evento,
-        token=token,
-        activa=True,
-    )
-
-    if request.method == "POST":
-        codigo = request.POST.get("codigo", "").strip()
-
-        if codigo == mesa.codigo_acceso:
-            # Rotamos la clave de sesión para evitar session fixation.
-            request.session.cycle_key()
-
-            request.session["mesa_id"] = mesa.id
-            request.session["evento_id"] = evento.id
-
-            # La sesión durará 4 horas.
-            request.session.set_expiry(60 * 60 * 4)
-
-            return redirect(
-                "mesa_publica",
-                slug=evento.slug,
-                token=mesa.token,
-            )
-
-        return render(
-            request,
-            "eventos/verificar_acceso.html",
-            {
-                "evento": evento,
-                "mesa": mesa,
-                "error": "El código no es correcto.",
-            },
-        )
-
-    return render(
-        request,
-        "eventos/verificar_acceso.html",
-        {
-            "evento": evento,
-            "mesa": mesa,
-        },
-    )
-
-def instrucciones(request, slug, token):
+def subir_fotos(request, slug, token):
     evento = get_object_or_404(
         Evento,
         slug=slug,
@@ -308,80 +369,15 @@ def instrucciones(request, slug, token):
     # Debe existir una sesión autorizada para esta mesa.
     if request.session.get("mesa_id") != mesa.id:
         return redirect(
-            "verificar_acceso",
-            slug=evento.slug,
-            token=mesa.token,
-        )
-
-    # Si ya aceptó las instrucciones, no tiene sentido
-    # mostrárselas nuevamente.
-    if request.session.get("instrucciones_aceptadas"):
-        return redirect(
             "mesa_publica",
             slug=evento.slug,
             token=mesa.token,
         )
 
-    if request.method == "POST":
-        acepto = request.POST.get("acepto")
-
-        if acepto == "on":
-            request.session["instrucciones_aceptadas"] = True
-
-            return redirect(
-                "mesa_publica",
-                slug=evento.slug,
-                token=mesa.token,
-            )
-
-    return render(
-        request,
-        "eventos/instrucciones.html",
-        {
-            "evento": evento,
-            "mesa": mesa,
-        },
-    )
-
-
-def subir_fotos(request, slug, token):
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-        estado__in=[
-            Evento.Estado.ACTIVE,
-            Evento.Estado.CLOSED,
-        ],
-    )
-
-    if evento.estado == Evento.Estado.CLOSED:
-        return render(
-            request,
-            "eventos/evento_cerrado.html",
-            {
-                "evento": evento,
-            },
-        )
-
-    mesa = get_object_or_404(
-        Mesa,
-        evento=evento,
-        token=token,
-        activa=True,
-    )
-
-    # Debe existir una sesión autorizada.
-    if request.session.get("mesa_id") != mesa.id:
-        return redirect(
-            "verificar_acceso",
-            slug=evento.slug,
-            token=mesa.token,
-        )
-
-    # Debe haber aceptado las instrucciones.
+    # Debe haber aceptado el consentimiento.
     if not request.session.get("instrucciones_aceptadas"):
         return redirect(
-            "instrucciones",
+            "mesa_publica",
             slug=evento.slug,
             token=mesa.token,
         )
@@ -430,7 +426,7 @@ def solicitar_url_subida(request, slug, token):
     # Debe haber aceptado las instrucciones.
     if not request.session.get("instrucciones_aceptadas"):
         return JsonResponse(
-            {"error": "Debes aceptar las instrucciones."},
+            {"error": "Debes aceptar el consentimiento para compartir fotos."},
             status=403,
         )
 
@@ -882,11 +878,13 @@ def home(request):
         "eventos/home.html",
     )
 
-
-
 @login_required
 def dashboard(request):
-    eventos = eventos_del_usuario(request)
+
+    if not request.user.is_superuser:
+        return redirect("dashboard_anfitrion")
+
+    eventos = Evento.objects.all()
 
     total_eventos = eventos.count()
 
@@ -952,7 +950,59 @@ def dashboard(request):
     )
 
 @login_required
+def dashboard_anfitrion(request):
+
+    if request.user.is_superuser:
+        return redirect("dashboard")
+
+    eventos = Evento.objects.filter(
+        anfitriones=request.user,
+    )
+
+    for evento in eventos:
+
+        fotos_evento = Foto.objects.filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+
+        evento.total_fotos = fotos_evento.count()
+
+        evento.almacenamiento_usado = (
+            fotos_evento
+            .aggregate(total=Sum("tamaño"))
+            .get("total")
+            or 0
+        )
+
+        evento.porcentaje_fotos = (
+            evento.total_fotos
+            / MAX_FOTOS_POR_EVENTO
+            * 100
+        )
+
+        evento.porcentaje_almacenamiento = (
+            evento.almacenamiento_usado
+            / MAX_STORAGE_POR_EVENTO
+            * 100
+        )
+
+    return render(
+        request,
+        "eventos/dashboard_anfitrion.html",
+        {
+            "eventos": eventos,
+        },
+    )
+
+@login_required
 def crear_evento(request):
+
+    if not request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para crear eventos.",
+            status=403,
+        )
 
     if request.method == "POST":
 
@@ -1189,12 +1239,50 @@ def solicitar_url_personalizacion(request, slug):
 
 def activar_cuenta(request, token):
 
-    invitacion = get_object_or_404(
-        InvitacionAnfitrion,
-        token=token,
+    # Primero buscamos en el nuevo sistema de invitaciones.
+    invitacion_usuario = (
+        InvitacionUsuario.objects
+        .filter(token=token)
+        .select_related("usuario")
+        .first()
     )
 
+    # Si no existe, buscamos en el sistema anterior.
+    invitacion_anfitrion = None
+
+    if invitacion_usuario is None:
+
+        invitacion_anfitrion = (
+            InvitacionAnfitrion.objects
+            .filter(token=token)
+            .select_related(
+                "usuario",
+                "evento",
+            )
+            .first()
+        )
+
+        if invitacion_anfitrion is None:
+            return HttpResponse(
+                "La invitación no es válida.",
+                status=404,
+            )
+
+        usuario = invitacion_anfitrion.usuario
+        invitacion = invitacion_anfitrion
+
+    else:
+
+        usuario = invitacion_usuario.usuario
+        invitacion = invitacion_usuario
+
+
+    # -----------------------------------------
+    # VALIDAR INVITACIÓN
+    # -----------------------------------------
+
     if invitacion.esta_usada:
+
         return render(
             request,
             "eventos/invitacion_usada.html",
@@ -1203,7 +1291,9 @@ def activar_cuenta(request, token):
             },
         )
 
+
     if invitacion.esta_expirada:
+
         return render(
             request,
             "eventos/invitacion_expirada.html",
@@ -1212,7 +1302,10 @@ def activar_cuenta(request, token):
             },
         )
 
-    usuario = invitacion.usuario
+
+    # -----------------------------------------
+    # ACTIVAR CUENTA
+    # -----------------------------------------
 
     if request.method == "POST":
 
@@ -1225,6 +1318,7 @@ def activar_cuenta(request, token):
             )
 
             usuario.is_active = True
+
             usuario.save(
                 update_fields=[
                     "password",
@@ -1233,6 +1327,7 @@ def activar_cuenta(request, token):
             )
 
             invitacion.usada_en = timezone.now()
+
             invitacion.save(
                 update_fields=[
                     "usada_en",
@@ -1249,12 +1344,41 @@ def activar_cuenta(request, token):
                 "Tu cuenta fue activada correctamente.",
             )
 
-            return redirect(
-                "dashboard",
+            # -----------------------------------------
+            # REDIRECCIÓN SEGÚN ROL
+            # -----------------------------------------
+
+            if usuario.is_superuser:
+
+                return redirect(
+                    "dashboard",
+                )
+
+
+            eventos = Evento.objects.filter(
+                anfitriones=usuario,
             )
 
+
+            if eventos.count() == 1:
+
+                evento = eventos.first()
+
+                return redirect(
+                    "dashboard_evento",
+                    slug=evento.slug,
+                )
+
+
+            return redirect(
+                "dashboard_anfitrion",
+            )
+
+
     else:
+
         form = ActivarCuentaForm()
+
 
     return render(
         request,
@@ -1267,7 +1391,7 @@ def activar_cuenta(request, token):
     )
 
 @login_required
-def crear_usuario_evento(request, slug):
+def crear_usuario(request):
 
     if not request.user.is_superuser:
         return HttpResponse(
@@ -1275,28 +1399,45 @@ def crear_usuario_evento(request, slug):
             status=403,
         )
 
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-    )
+    evento_preseleccionado = None
+
+    evento_slug = request.GET.get("evento")
+
+    if evento_slug:
+        evento_preseleccionado = get_object_or_404(
+            Evento,
+            slug=evento_slug,
+        )
 
     if request.method == "POST":
 
-        form = UsuarioEventoForm(request.POST)
+        form = UsuarioForm(request.POST)
 
         if form.is_valid():
 
             usuario = form.save()
 
-            evento.anfitriones.add(usuario)
+            rol = form.cleaned_data["rol"]
+            eventos = form.cleaned_data["eventos"]
 
-            invitacion = InvitacionAnfitrion.objects.create(
+            # -----------------------------------------
+            # ANFITRIÓN
+            # -----------------------------------------
+
+            if rol == UsuarioForm.ROL_ANFITRION:
+
+                for evento in eventos:
+                    evento.anfitriones.add(usuario)
+
+            # -----------------------------------------
+            # INVITACIÓN DE ACTIVACIÓN
+            # -----------------------------------------
+
+            invitacion = InvitacionUsuario.objects.create(
                 usuario=usuario,
-                evento=evento,
                 expira_en=timezone.now() + timedelta(days=3),
             )
 
-            # AQUÍ
             enlace_activacion = request.build_absolute_uri(
                 reverse(
                     "activar_cuenta",
@@ -1306,32 +1447,85 @@ def crear_usuario_evento(request, slug):
                 )
             )
 
-            mensaje_texto = (
-                f"Hola {usuario.first_name},\n\n"
-                "Se ha creado una cuenta para ti en EventPhotos "
-                "como anfitrión de un evento.\n\n"
-                f"Evento: {evento.nombre}\n\n"
-                "Tu correo electrónico también será tu nombre de usuario "
-                "para iniciar sesión.\n\n"
-                f"Usuario: {usuario.email}\n\n"
-                "Puedes activar tu cuenta y crear tu contraseña "
-                "utilizando el siguiente enlace:\n\n"
-                f"{enlace_activacion}\n\n"
-                "Este enlace tiene una vigencia de 3 días.\n\n"
-                "EventPhotos"
-            )
+            # -----------------------------------------
+            # CORREO
+            # -----------------------------------------
 
-            mensaje_html = render_to_string(
-                "eventos/invitacion_anfitrion.html",
-                {
+            if rol == UsuarioForm.ROL_ADMIN:
+
+                mensaje_texto = (
+                    f"Hola {usuario.first_name},\n\n"
+                    "Se ha creado una cuenta para ti en "
+                    "EventPhotos como administrador.\n\n"
+                    f"Usuario: {usuario.email}\n\n"
+                    "Tu correo electrónico también será tu "
+                    "nombre de usuario para iniciar sesión.\n\n"
+                    "Puedes activar tu cuenta y crear tu "
+                    "contraseña utilizando el siguiente enlace:\n\n"
+                    f"{enlace_activacion}\n\n"
+                    "Este enlace tiene una vigencia de 3 días.\n\n"
+                    "EventPhotos"
+                )
+
+                mensaje_html = render_to_string(
+                    "eventos/invitacion_admin.html",
+                    {
+                        "usuario": usuario,
+                        "enlace_activacion": enlace_activacion,
+                    },
+                )
+
+                asunto = (
+                    "Activa tu cuenta de administrador de EventPhotos"
+                )
+
+                contexto_mensaje = {
                     "usuario": usuario,
-                    "evento": evento,
                     "enlace_activacion": enlace_activacion,
-                },
-            )
+                }
+
+            else:
+
+                nombres_eventos = "\n".join(
+                    f"- {evento.nombre}"
+                    for evento in eventos
+                )
+
+                mensaje_texto = (
+                    f"Hola {usuario.first_name},\n\n"
+                    "Se ha creado una cuenta para ti en "
+                    "EventPhotos como anfitrión.\n\n"
+                    "Eventos asignados:\n"
+                    f"{nombres_eventos}\n\n"
+                    f"Usuario: {usuario.email}\n\n"
+                    "Tu correo electrónico también será tu "
+                    "nombre de usuario para iniciar sesión.\n\n"
+                    "Puedes activar tu cuenta y crear tu "
+                    "contraseña utilizando el siguiente enlace:\n\n"
+                    f"{enlace_activacion}\n\n"
+                    "Este enlace tiene una vigencia de 3 días.\n\n"
+                    "EventPhotos"
+                )
+
+                mensaje_html = render_to_string(
+                    "eventos/invitacion_anfitrion.html",
+                    {
+                        "usuario": usuario,
+                        "eventos": eventos,
+                        "enlace_activacion": enlace_activacion,
+                    },
+                )
+
+                asunto = "Activa tu cuenta de EventPhotos"
+
+                contexto_mensaje = {
+                    "usuario": usuario,
+                    "eventos": eventos,
+                    "enlace_activacion": enlace_activacion,
+                }
 
             correo = EmailMultiAlternatives(
-                subject="Activa tu cuenta de EventPhotos",
+                subject=asunto,
                 body=mensaje_texto,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[usuario.email],
@@ -1346,26 +1540,31 @@ def crear_usuario_evento(request, slug):
 
             messages.success(
                 request,
-                (
-                    f"Anfitrión {usuario.username} creado "
-                    "y se generó una invitación."
-                ),
+                f"Usuario {usuario.email} creado correctamente.",
             )
 
-            return redirect(
-                "dashboard_evento",
-                slug=evento.slug,
-            )
+            return redirect("dashboard")
 
     else:
-        form = UsuarioEventoForm()
+
+        if evento_preseleccionado:
+
+            form = UsuarioForm(
+                initial={
+                    "eventos": [
+                        evento_preseleccionado.id,
+                    ],
+                }
+            )
+
+        else:
+            form = UsuarioForm()
 
     return render(
         request,
-        "eventos/crear_usuario_evento.html",
+        "eventos/crear_usuario.html",
         {
             "form": form,
-            "evento": evento,
         },
     )
 
@@ -1749,18 +1948,12 @@ def configurar_mesas(request, slug):
         },
     )
 
-@login_required
 def qr_mesa(request, slug, mesa_id):
-    if not request.user.is_superuser:
-        evento = obtener_evento_del_usuario(
-            request,
-            slug,
-        )
-    else:
-        evento = get_object_or_404(
-            Evento,
-            slug=slug,
-        )
+
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+    )
 
     mesa = get_object_or_404(
         Mesa,
@@ -1789,7 +1982,11 @@ def qr_mesa(request, slug, mesa_id):
     )
 
     buffer = io.BytesIO()
-    imagen.save(buffer, format="PNG")
+
+    imagen.save(
+        buffer,
+        format="PNG",
+    )
 
     return HttpResponse(
         buffer.getvalue(),

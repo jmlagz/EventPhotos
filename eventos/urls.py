@@ -55,6 +55,18 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/usuarios/crear/",
+        views.crear_usuario,
+        name="crear_usuario",
+    ),
+
+    path(
+        "dashboard/anfitrion/",
+        views.dashboard_anfitrion,
+        name="dashboard_anfitrion",
+    ),
+
+    path(
         "dashboard/eventos/crear/",
         views.crear_evento,
         name="crear_evento",
@@ -70,17 +82,7 @@ urlpatterns = [
         views.mesa_publica,
         name="mesa_publica",
     ),
-    path(
-        "fotos/<slug:slug>/t/<str:token>/acceso/",
-        views.verificar_acceso,
-        name="verificar_acceso",
-    ),
-    path(
-        "fotos/<slug:slug>/t/<str:token>/instrucciones/",
-        views.instrucciones,
-        name="instrucciones",
-    ),
-
+    
     path(
         "fotos/<slug:slug>/t/<str:token>/subir/",
         views.subir_fotos,
@@ -133,12 +135,6 @@ urlpatterns = [
         "dashboard/eventos/<slug:slug>/descargar-fotos/",
         views.descargar_fotos_evento,
         name="descargar_fotos_evento",
-    ),
-
-    path(
-        "dashboard/eventos/<slug:slug>/usuario/crear/",
-        views.crear_usuario_evento,
-        name="crear_usuario_evento",
     ),
 
     path(

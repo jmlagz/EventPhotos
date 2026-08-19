@@ -53,7 +53,7 @@
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 16px;
 
         margin-bottom: 30px;
@@ -360,19 +360,32 @@
 
         </div>
 
-        <a
-            href="{% url 'dashboard' %}"
-            class="back-link"
-        >
-            ← Volver a mis eventos
-        </a>
+        {% if request.user.is_superuser %}
+
+            <a
+                href="{% url 'dashboard' %}"
+                class="back-link"
+            >
+                ← Volver a mis eventos
+            </a>
+
+        {% else %}
+
+            <a
+                href="{% url 'dashboard_anfitrion' %}"
+                class="back-link"
+            >
+                ← Volver a mis eventos
+            </a>
+
+        {% endif %}
 
     </div>
 
 
     <!-- =========================
-         ESTADÍSTICAS
-         ========================= -->
+    ESTADÍSTICAS
+    ========================= -->
 
     <div class="stats-grid">
 
@@ -412,6 +425,40 @@
 
             <div class="stat-label">
                 Mesas
+            </div>
+
+        </div>
+
+
+        <div class="card stat-card">
+
+            <div class="stat-number">
+                {{ almacenamiento_usado|filesizeformat }}
+            </div>
+
+            <div class="stat-label">
+                Almacenamiento
+            </div>
+
+            <div class="progress-container">
+
+                <div
+                    class="progress-bar"
+                    style="--progress: {{ porcentaje_almacenamiento }}%;"
+                ></div>
+
+            </div>
+
+            <div
+                style="
+                    margin-top: 8px;
+                    color: var(--color-text-secondary);
+                    font-size: 13px;
+                "
+            >
+                {{ almacenamiento_usado|filesizeformat }}
+                /
+                {{ max_almacenamiento|filesizeformat }}
             </div>
 
         </div>
@@ -685,10 +732,10 @@
             </p>
 
             <a
-                href="{% url 'crear_usuario_evento' slug=evento.slug %}"
+                href="{% url 'crear_usuario' %}?evento={{ evento.slug }}"
                 class="button"
             >
-                + Crear anfitrión
+                + Crear usuario
             </a>
 
         </section>
@@ -1176,7 +1223,7 @@
                 setTimeout(
                     function () {
 
-                        window.location.reload();PERSONALIZACIÓN
+                        window.location.reload();
 
                     },
                     700

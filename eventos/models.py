@@ -293,3 +293,53 @@ class InvitacionAnfitrion(models.Model):
 
     def __str__(self):
         return f"Invitación de {self.usuario.username} - {self.evento.nombre}"
+
+class InvitacionUsuario(models.Model):
+
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="invitaciones_usuario",
+    )
+
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+    )
+
+    creada_en = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    expira_en = models.DateTimeField()
+
+    usada_en = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    def generar_token(self):
+        return secrets.token_urlsafe(32)
+
+    def save(self, *args, **kwargs):
+
+        if not self.token:
+            self.token = self.generar_token()
+
+        super().save(*args, **kwargs)
+
+    @property
+    def esta_usada(self):
+        return self.usada_en is not None
+
+    @property
+    def esta_expirada(self):
+        from django.utils import timezone
+
+        return timezone.now() >= self.expira_en
+
+    def __str__(self):
+        return (
+            f"Invitación de {self.usuario.username}"
+        )    

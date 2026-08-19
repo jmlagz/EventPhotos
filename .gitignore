@@ -35,3 +35,7 @@ dist/
 build/
 .vercel
 .env*
+
+# Local Vercel / debug files
+.vercel-production.env
+errores.json

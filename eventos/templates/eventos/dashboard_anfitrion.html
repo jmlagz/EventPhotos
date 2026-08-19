@@ -1,19 +1,14 @@
 {% extends "eventos/base.html" %}
 
 {% block title %}
-Dashboard - EventPhotos
+Mis eventos - EventPhotos
 {% endblock %}
-
 
 {% block extra_css %}
 
 <style>
 
     .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 20px;
         margin-bottom: 30px;
     }
 
@@ -29,10 +24,6 @@ Dashboard - EventPhotos
     }
 
     .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 15px;
         margin-bottom: 20px;
     }
 
@@ -41,73 +32,9 @@ Dashboard - EventPhotos
         font-size: 22px;
     }
 
-    .summary {
-        padding: 24px;
-        margin-bottom: 32px;
-    }
-
-    .summary h2 {
-        margin: 0 0 20px;
-        font-size: 18px;
-    }
-
-    .summary-grid {
-        display: grid;
-        grid-template-columns:
-            repeat(3, 1fr);
-        gap: 16px;
-    }
-
-    .summary-item {
-        padding: 18px;
-        border-radius: var(--radius-md);
-        background: var(--color-background);
-    }
-
-    .summary-label {
-        display: block;
-        margin-bottom: 6px;
-
-        color: var(--color-text-secondary);
-        font-size: 13px;
-        font-weight: 500;
-    }
-
-    .summary-value {
-        font-size: 22px;
-        font-weight: 700;
-    }
-
-    .progress-container {
-        width: 100%;
-        height: 8px;
-
-        margin-top: 12px;
-
-        background: #e5e7eb;
-        border-radius: 999px;
-
-        overflow: hidden;
-    }
-
-    .progress-bar {
-        width: var(--progress);
-        height: 100%;
-
-        background:
-            linear-gradient(
-                90deg,
-                var(--color-primary),
-                #8b5cf6
-            );
-
-        border-radius: 999px;
-    }
-
     .events-grid {
         display: grid;
-        grid-template-columns:
-            repeat(2, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 20px;
     }
 
@@ -160,39 +87,52 @@ Dashboard - EventPhotos
         color: var(--color-text-secondary);
     }
 
+    .progress-container {
+        width: 100%;
+        height: 8px;
+
+        margin-top: 7px;
+
+        background: #e5e7eb;
+        border-radius: 999px;
+
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        width: var(--progress);
+        height: 100%;
+
+        background:
+            linear-gradient(
+                90deg,
+                var(--color-primary),
+                #8b5cf6
+            );
+
+        border-radius: 999px;
+    }
+
     .event-card .button {
         margin-top: 20px;
+        width: 100%;
+        text-align: center;
     }
 
     .empty-state {
         padding: 30px;
-
         text-align: center;
-
         color: var(--color-text-secondary);
     }
 
-
     @media (max-width: 700px) {
-
-        .dashboard-header {
-            flex-direction: column;
-        }
 
         .dashboard-header h1 {
             font-size: 26px;
         }
 
-        .summary-grid {
-            grid-template-columns: 1fr;
-        }
-
         .events-grid {
             grid-template-columns: 1fr;
-        }
-
-        .section-header {
-            align-items: flex-start;
         }
 
     }
@@ -200,7 +140,6 @@ Dashboard - EventPhotos
 </style>
 
 {% endblock %}
-
 
 {% block content %}
 
@@ -227,93 +166,7 @@ Dashboard - EventPhotos
             Mis eventos
         </h2>
 
-        <div
-            style="
-                display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-            "
-        >
-
-            <a
-                href="{% url 'crear_usuario' %}"
-                class="button"
-            >
-                + Crear usuario
-            </a>
-
-            <a
-                href="{% url 'crear_evento' %}"
-                class="button"
-            >
-                + Crear evento
-            </a>
-
-        </div>
-
     </div>
-
-
-    <section class="card summary">
-
-        <h2>
-            📊 Almacenamiento de pruebas
-        </h2>
-
-        <div class="summary-grid">
-
-            <div class="summary-item">
-
-                <span class="summary-label">
-                    Eventos
-                </span>
-
-                <span class="summary-value">
-                    {{ total_eventos }}
-                </span>
-
-            </div>
-
-
-            <div class="summary-item">
-
-                <span class="summary-label">
-                    Fotos
-                </span>
-
-                <span class="summary-value">
-                    {{ total_fotos }}
-                </span>
-
-            </div>
-
-
-            <div class="summary-item">
-
-                <span class="summary-label">
-                    Almacenamiento
-                </span>
-
-                <span class="summary-value">
-                    {{ almacenamiento_usado|filesizeformat }}
-                    /
-                    {{ max_storage_pruebas|filesizeformat }}
-                </span>
-
-                <div class="progress-container">
-
-                    <div
-                        class="progress-bar"
-                        style="--progress: {{ porcentaje_almacenamiento }}%;"
-                    ></div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </section>
 
 
     {% if eventos %}
@@ -327,7 +180,6 @@ Dashboard - EventPhotos
                     <h2>
                         {{ evento.nombre }}
                     </h2>
-
 
                     <div class="event-info">
 
@@ -351,9 +203,7 @@ Dashboard - EventPhotos
                             </span>
 
                             <span class="metric-value">
-                                {{ evento.total_fotos }}
-                                /
-                                450
+                                {{ evento.total_fotos }} / 450
                             </span>
 
                         </div>
@@ -415,7 +265,7 @@ Dashboard - EventPhotos
 
         <div class="card empty-state">
 
-            No tienes eventos todavía.
+            No tienes eventos asignados todavía.
 
         </div>
 

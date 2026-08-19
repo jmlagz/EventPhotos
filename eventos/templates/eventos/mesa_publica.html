@@ -1,14 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-    <title>{{ evento.nombre }} - {{ mesa.etiqueta }}</title>
+
+    <title>
+        {{ evento.nombre }} - {{ mesa.etiqueta }}
+    </title>
 
     <style>
+
         :root {
             --primary: #635bff;
             --primary-dark: #5148e8;
@@ -17,6 +24,9 @@
             --text: #1f2937;
             --muted: #6b7280;
             --border: #e8eaf0;
+            --error-bg: #fff1f2;
+            --error-border: #fecdd3;
+            --error-text: #be123c;
             --shadow: 0 18px 45px rgba(31, 41, 55, 0.10);
         }
 
@@ -27,129 +37,364 @@
         body {
             min-height: 100vh;
             margin: 0;
+
             display: flex;
             flex-direction: column;
-            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
-                Roboto, Helvetica, Arial, sans-serif;
+
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                Roboto,
+                Helvetica,
+                Arial,
+                sans-serif;
+
             color: var(--text);
+
             background:
-                radial-gradient(circle at top right, rgba(99, 91, 255, 0.13), transparent 30%),
-                linear-gradient(180deg, #f8f9ff 0%, var(--bg) 100%);
+                radial-gradient(
+                    circle at top right,
+                    rgba(99, 91, 255, 0.13),
+                    transparent 30%
+                ),
+                linear-gradient(
+                    180deg,
+                    #f8f9ff 0%,
+                    var(--bg) 100%
+                );
         }
 
         .encabezado {
             padding: 20px;
+
             background: rgba(255, 255, 255, 0.82);
+
             border-bottom: 1px solid var(--border);
+
             backdrop-filter: blur(14px);
         }
 
         .marca {
             width: min(960px, 100%);
             margin: 0 auto;
+
             display: flex;
             align-items: center;
             gap: 10px;
+
             font-size: 15px;
             font-weight: 800;
-            color: var(--text);
         }
 
         .marca-icono {
+            width: 34px;
+            height: 34px;
+
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 34px;
-            height: 34px;
+
             border-radius: 11px;
+
             color: white;
-            background: linear-gradient(135deg, var(--primary), #8b5cf6);
-            box-shadow: 0 7px 18px rgba(99, 91, 255, 0.28);
+
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    #8b5cf6
+                );
+
+            box-shadow:
+                0 7px 18px rgba(99, 91, 255, 0.28);
         }
 
         main {
             width: min(760px, 100%);
+
             margin: 0 auto;
+
             padding: 42px 20px 30px;
+
             flex: 1;
         }
 
         .tarjeta {
             overflow: hidden;
+
             background: var(--surface);
+
             border: 1px solid var(--border);
+
             border-radius: 28px;
+
             box-shadow: var(--shadow);
         }
 
         .hero {
             padding: 42px 28px 34px;
+
             text-align: center;
+
             color: white;
-            background: linear-gradient(135deg, #635bff 0%, #7c5cff 55%, #8b5cf6 100%);
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #635bff 0%,
+                    #7c5cff 55%,
+                    #8b5cf6 100%
+                );
         }
 
         .icono {
             width: 72px;
             height: 72px;
+
             margin: 0 auto 18px;
+
             display: flex;
             align-items: center;
             justify-content: center;
+
             border-radius: 22px;
+
             font-size: 36px;
+
             background: rgba(255, 255, 255, 0.16);
+
             border: 1px solid rgba(255, 255, 255, 0.18);
+
             backdrop-filter: blur(10px);
         }
 
         .hero h1 {
             margin: 0;
-            font-size: clamp(27px, 6vw, 38px);
+
+            font-size:
+                clamp(27px, 6vw, 38px);
+
             line-height: 1.15;
         }
 
         .mesa {
             margin-top: 8px;
+
             font-size: 17px;
+
             opacity: 0.9;
         }
 
         .contenido {
             padding: 30px;
-            text-align: center;
         }
 
-        .mensaje {
-            margin: 0 auto 10px;
-            font-size: 18px;
-            font-weight: 700;
+        .titulo {
+            margin: 0 0 8px;
+
+            text-align: center;
+
+            font-size: 24px;
         }
 
         .descripcion {
-            max-width: 520px;
-            margin: 0 auto 26px;
+            max-width: 560px;
+
+            margin: 0 auto 24px;
+
+            text-align: center;
+
             color: var(--muted);
+
             line-height: 1.6;
+        }
+
+        .info-box {
+            padding: 18px;
+
+            margin-bottom: 22px;
+
+            border-radius: 16px;
+
+            background: #f7f7ff;
+
+            border: 1px solid #e7e4ff;
+        }
+
+        .info-box p {
+            margin: 0 0 12px;
+
+            color: #4b5565;
+
+            line-height: 1.55;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .errores {
+            margin-bottom: 20px;
+
+            padding: 14px 16px;
+
+            border-radius: 14px;
+
+            background: var(--error-bg);
+
+            border: 1px solid var(--error-border);
+
+            color: var(--error-text);
+
+            line-height: 1.5;
+        }
+
+        .errores p {
+            margin: 0 0 6px;
+        }
+
+        .errores p:last-child {
+            margin-bottom: 0;
+        }
+
+        .campo {
+            margin-top: 22px;
+        }
+
+        .campo label {
+            display: block;
+
+            margin-bottom: 8px;
+
+            font-weight: 700;
+        }
+
+        .campo input {
+            width: 100%;
+
+            min-height: 58px;
+
+            padding: 10px 18px;
+
+            border: 2px solid #dfe2ea;
+
+            border-radius: 15px;
+
+            background: #fff;
+
+            text-align: center;
+
+            font-size: 27px;
+
+            font-weight: 800;
+
+            letter-spacing: 8px;
+
+            color: var(--text);
+
+            outline: none;
+
+            transition:
+                border-color 0.2s ease,
+                box-shadow 0.2s ease;
+        }
+
+        .campo input:focus {
+            border-color: var(--primary);
+
+            box-shadow:
+                0 0 0 4px
+                rgba(99, 91, 255, 0.12);
+        }
+
+        .ayuda {
+            margin-top: 8px;
+
+            color: var(--muted);
+
+            font-size: 13px;
+
+            text-align: center;
+        }
+
+        .check {
+            display: flex;
+
+            gap: 12px;
+
+            align-items: flex-start;
+
+            margin-top: 22px;
+
+            padding: 15px;
+
+            border: 1px solid var(--border);
+
+            border-radius: 14px;
+
+            background: #fbfcff;
+
+            cursor: pointer;
+        }
+
+        .check input {
+            width: 19px;
+            height: 19px;
+
+            margin: 2px 0 0;
+
+            accent-color: var(--primary);
+
+            flex: 0 0 auto;
+        }
+
+        .check span {
+            color: var(--text);
+
+            line-height: 1.45;
+
+            font-weight: 650;
         }
 
         .acciones {
             display: grid;
+
             gap: 12px;
+
+            margin-top: 20px;
         }
 
         .boton {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 9px;
+            width: 100%;
+
             min-height: 52px;
+
             padding: 12px 18px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 9px;
+
             border-radius: 15px;
+
             text-decoration: none;
+
             font-size: 16px;
+
             font-weight: 750;
-            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+
+            cursor: pointer;
+
+            transition:
+                transform 0.2s ease,
+                box-shadow 0.2s ease,
+                background 0.2s ease;
         }
 
         .boton:hover {
@@ -157,25 +402,43 @@
         }
 
         .boton-principal {
+            border: 0;
+
             color: white;
-            background: linear-gradient(135deg, var(--primary), #7c5cff);
-            box-shadow: 0 10px 24px rgba(99, 91, 255, 0.25);
+
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    #7c5cff
+                );
+
+            box-shadow:
+                0 10px 24px
+                rgba(99, 91, 255, 0.25);
         }
 
         .boton-principal:hover {
-            box-shadow: 0 14px 30px rgba(99, 91, 255, 0.32);
+            box-shadow:
+                0 14px 30px
+                rgba(99, 91, 255, 0.32);
         }
 
         .boton-secundario {
             color: var(--text);
+
             background: #f7f7fb;
+
             border: 1px solid var(--border);
         }
 
         .pie {
             padding: 24px 20px 30px;
+
             text-align: center;
+
             color: var(--muted);
+
             font-size: 13px;
         }
 
@@ -185,10 +448,12 @@
 
         .pie-correo {
             margin-top: 4px;
+
             font-size: 12px;
         }
 
         @media (max-width: 600px) {
+
             main {
                 padding: 24px 14px 20px;
             }
@@ -204,71 +469,196 @@
             .tarjeta {
                 border-radius: 22px;
             }
+
+            .campo input {
+                font-size: 23px;
+                letter-spacing: 6px;
+            }
         }
+
     </style>
+
 </head>
 
 <body>
 
     <header class="encabezado">
+
         <div class="marca">
-            <span class="marca-icono">E</span>
-            <span>EventPhotos</span>
+
+            <span class="marca-icono">
+                E
+            </span>
+
+            <span>
+                EventPhotos
+            </span>
+
         </div>
+
     </header>
 
+
     <main>
+
         <section class="tarjeta">
 
             <div class="hero">
-                <div class="icono">📸</div>
 
-                <h1>{{ evento.nombre }}</h1>
+                <div class="icono">
+                    📸
+                </div>
+
+                <h1>
+                    {{ evento.nombre }}
+                </h1>
 
                 <div class="mesa">
                     {{ mesa.etiqueta }}
                 </div>
+
             </div>
+
 
             <div class="contenido">
 
-                <p class="mensaje">
-                    Comparte las fotos de este evento
-                </p>
+                <h2 class="titulo">
+                    Antes de compartir tus fotos
+                </h2>
 
                 <p class="descripcion">
-                    Para comenzar, necesitamos confirmar que estás
-                    en esta mesa. Después podrás compartir tus fotos
-                    y consultar el álbum del evento.
+                    Para comenzar, confirma que estás en esta mesa
+                    y acepta las condiciones para compartir tus fotos
+                    con los invitados de este evento.
                 </p>
 
-                <div class="acciones">
 
-                    <a
-                        class="boton boton-principal"
-                        href="{% url 'verificar_acceso' evento.slug mesa.token %}"
-                    >
-                        📸 Subir fotos
-                    </a>
+                {% if errores %}
 
-                    <a
-                        class="boton boton-secundario"
-                        href="{% url 'album_publico' slug=evento.slug %}"
-                    >
-                        🖼️ Ver álbum del evento
-                    </a>
+                    <div class="errores">
+
+                        {% for error in errores %}
+
+                            <p>
+                                {{ error }}
+                            </p>
+
+                        {% endfor %}
+
+                    </div>
+
+                {% endif %}
+
+
+                <div class="info-box">
+
+                    <p>
+                        📱 Puedes seleccionar varias fotos al mismo
+                        tiempo desde tu teléfono.
+                    </p>
+
+                    <p>
+                        🖼️ Las fotos que compartas formarán parte
+                        del álbum del evento.
+                    </p>
+
+                    <p>
+                        🤝 Comparte únicamente fotos apropiadas
+                        para todos los asistentes.
+                    </p>
 
                 </div>
+
+
+                <form method="post">
+
+                    {% csrf_token %}
+
+
+                    <div class="campo">
+
+                        <label for="codigo">
+                            Código de acceso
+                        </label>
+
+                        <input
+                            type="text"
+                            id="codigo"
+                            name="codigo"
+                            inputmode="numeric"
+                            autocomplete="one-time-code"
+                            maxlength="6"
+                            pattern="[0-9]{6}"
+                            value="{{ codigo_ingresado }}"
+                            placeholder="000000"
+                            required
+                        >
+
+                        <div class="ayuda">
+                            Introduce el código que aparece junto
+                            al código QR de tu mesa.
+                        </div>
+
+                    </div>
+
+
+                    <label class="check">
+
+                        <input
+                            type="checkbox"
+                            name="acepto"
+                            required
+                        >
+
+                        <span>
+                            Entiendo y quiero compartir mis fotos
+                            en este evento.
+                        </span>
+
+                    </label>
+
+
+                    <div class="acciones">
+
+                        <button
+                            type="submit"
+                            class="boton boton-principal"
+                        >
+                            Continuar →
+                        </button>
+
+
+                        <a
+                            class="boton boton-secundario"
+                            href="{% url 'album_publico' slug=evento.slug %}"
+                        >
+                            🖼️ Ver álbum del evento
+                        </a>
+
+                    </div>
+
+                </form>
 
             </div>
 
         </section>
+
     </main>
 
+
     <footer class="pie">
-        <div>EventPhotos · creado por <strong>LuisArt</strong></div>
-        <div class="pie-correo">jmlagz@gmail.com</div>
+
+        <div>
+            EventPhotos · creado por
+            <strong>LuisArt</strong>
+        </div>
+
+        <div class="pie-correo">
+            jmlagz@gmail.com
+        </div>
+
     </footer>
 
 </body>
+
 </html>

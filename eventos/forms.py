@@ -39,8 +39,26 @@ class EventoForm(forms.ModelForm):
             ),
         }
 
+class UsuarioForm(forms.ModelForm):
 
-class UsuarioEventoForm(forms.ModelForm):
+    ROL_ADMIN = "admin"
+    ROL_ANFITRION = "anfitrion"
+
+    rol = forms.ChoiceField(
+        choices=[
+            (ROL_ADMIN, "Administrador"),
+            (ROL_ANFITRION, "Anfitrión"),
+        ],
+        widget=forms.RadioSelect,
+        initial=ROL_ANFITRION,
+    )
+
+    eventos = forms.ModelMultipleChoiceField(
+        queryset=Evento.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Eventos asignados",
+    )
 
     class Meta:
         model = User
@@ -65,25 +83,45 @@ class UsuarioEventoForm(forms.ModelForm):
 
         return email
 
+    def clean(self):
+        cleaned_data = super().clean()
+
+        rol = cleaned_data.get("rol")
+        eventos = cleaned_data.get("eventos")
+
+        if rol == self.ROL_ANFITRION and not eventos:
+            raise forms.ValidationError(
+                "Debes asignar al menos un evento al anfitrión."
+            )
+
+        if rol == self.ROL_ADMIN:
+            cleaned_data["eventos"] = Evento.objects.none()
+
+        return cleaned_data
+
     def save(self, commit=True):
         usuario = super().save(commit=False)
 
         email = self.cleaned_data["email"]
 
-        # El correo será también el nombre de usuario.
         usuario.username = email
         usuario.email = email
 
-        # La contraseña se establecerá mediante la invitación.
         usuario.set_unusable_password()
 
-        usuario.is_active = True
+        usuario.is_active = False
+
+        if self.cleaned_data["rol"] == self.ROL_ADMIN:
+            usuario.is_staff = True
+            usuario.is_superuser = True
+        else:
+            usuario.is_staff = False
+            usuario.is_superuser = False
 
         if commit:
             usuario.save()
 
         return usuario
-
 
 class ActivarCuentaForm(forms.Form):
 
