@@ -310,6 +310,35 @@
         transform: translateY(-1px);
     }
 
+    .activate-event-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+
+        padding: 11px 18px;
+
+        background: #16a34a;
+        color: white;
+
+        border: none;
+        border-radius: 10px;
+
+        font-size: 14px;
+        font-weight: 600;
+
+        cursor: pointer;
+
+        transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+    }
+
+    .activate-event-button:hover {
+        background: #15803d;
+        transform: translateY(-1px);
+    }
+
     .close-event-button {
         display: inline-flex;
         align-items: center;
@@ -657,6 +686,23 @@
                 {{ evento.get_estado_display }}
             </strong>
         </p>
+
+        {% if evento.estado == "draft" %}
+            <form
+                method="post"
+                action="{% url 'activar_evento' evento.slug %}"
+                style="margin-top: 12px;"
+            >
+                {% csrf_token %}
+
+                <button
+                    type="submit"
+                    class="activate-event-button"
+                >
+                    🚀 Activar evento
+                </button>
+            </form>
+        {% endif %}
 
         {% if evento.estado == "closed" %}
             <form

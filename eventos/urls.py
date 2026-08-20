@@ -120,6 +120,12 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/activar/",
+        views.activar_evento,
+        name="activar_evento",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/reabrir/",
         views.reabrir_evento,
         name="reabrir_evento",

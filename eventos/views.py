@@ -1664,6 +1664,43 @@ def reabrir_evento(request, slug):
     )
 
 @login_required
+def activar_evento(request, slug):
+    if request.method != "POST":
+        return redirect(
+            "dashboard_evento",
+            slug=slug,
+        )
+
+    evento = obtener_evento_del_usuario(
+        request,
+        slug,
+    )
+
+    if evento.estado != Evento.Estado.DRAFT:
+        messages.warning(
+            request,
+            "Solo se pueden activar eventos en borrador.",
+        )
+
+        return redirect(
+            "dashboard_evento",
+            slug=evento.slug,
+        )
+
+    evento.estado = Evento.Estado.ACTIVE
+    evento.save(update_fields=["estado", "updated_at"])
+
+    messages.success(
+        request,
+        "El evento fue activado correctamente.",
+    )
+
+    return redirect(
+        "dashboard_evento",
+        slug=evento.slug,
+    )
+
+@login_required
 def cerrar_evento(request, slug):
     if request.method != "POST":
         return redirect(
