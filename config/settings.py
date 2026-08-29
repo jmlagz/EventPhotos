@@ -31,6 +31,17 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
+SECURE_SSL_REDIRECT = not DEBUG
+
+SESSION_COOKIE_SECURE = not DEBUG
+
+CSRF_COOKIE_SECURE = not DEBUG
+
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
@@ -103,7 +114,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     "default": dj_database_url.config(
         default=None,
-        conn_max_age=600,
+        conn_max_age=0,
     )
 }
 

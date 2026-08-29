@@ -574,34 +574,6 @@
 
                     {% csrf_token %}
 
-
-                    <div class="campo">
-
-                        <label for="codigo">
-                            Código de acceso
-                        </label>
-
-                        <input
-                            type="text"
-                            id="codigo"
-                            name="codigo"
-                            inputmode="numeric"
-                            autocomplete="one-time-code"
-                            maxlength="6"
-                            pattern="[0-9]{6}"
-                            value="{{ codigo_ingresado }}"
-                            placeholder="000000"
-                            required
-                        >
-
-                        <div class="ayuda">
-                            Introduce el código que aparece junto
-                            al código QR de tu mesa.
-                        </div>
-
-                    </div>
-
-
                     <label class="check">
 
                         <input

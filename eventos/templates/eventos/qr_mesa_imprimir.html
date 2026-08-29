@@ -1,23 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        QR - {{ mesa.etiqueta }}
-    </title>
+    <title>EventPhotos · {{ mesa.etiqueta }}</title>
 
     <style>
-
         @page {
-            size: 10cm 15cm;
+            size: letter landscape;
             margin: 0;
         }
 
@@ -25,153 +16,852 @@
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
-            background: #eeeeee;
+            width: 11in;
+            height: 8.5in;
         }
 
-        .tarjeta {
-            width: 10cm;
-            height: 15cm;
-            margin: 20px auto;
-            padding: 0.7cm;
+        body {
+            font-family:
+                "Helvetica Neue",
+                Helvetica,
+                Arial,
+                sans-serif;
+
+            background: #e9eaed;
+            color: #17191c;
+        }
+
+        /* =====================================================
+           HOJA CARTA HORIZONTAL
+        ===================================================== */
+
+        .hoja {
+            position: relative;
+
+            width: 11in;
+            height: 8.5in;
+
+            display: flex;
 
             background: white;
+        }
+
+        /* =====================================================
+           TARJETA MEDIA CARTA
+        ===================================================== */
+
+        .tarjeta {
+            position: relative;
+
+            width: 5.5in;
+            height: 8.5in;
+
+            padding:
+                0.40in
+                0.50in
+                0.32in;
 
             display: flex;
             flex-direction: column;
             align-items: center;
+
             text-align: center;
+
+            background: white;
         }
 
-        .mesa-numero {
-            font-size: 26px;
-            font-weight: bold;
-            margin-bottom: 5px;
+        /* =====================================================
+           LÍNEA DE CORTE
+        ===================================================== */
+
+        .corte {
+            position: absolute;
+
+            top: 0;
+            left: 50%;
+
+            height: 100%;
+
+            border-left:
+                1px dashed #c9cbd0;
+
+            z-index: 20;
         }
 
-        .mesa-nombre {
-            font-size: 20px;
-            margin-bottom: 15px;
+        /* =====================================================
+           MARCA
+        ===================================================== */
+
+        .marca {
+            display: flex;
+            align-items: center;
+
+            gap: 8px;
+
+            margin-bottom: 0.13in;
+        }
+
+        .marca-icono {
+            width: 25px;
+            height: 25px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border:
+                2px solid #17191c;
+
+            border-radius: 7px;
+
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .marca-texto {
+            font-size: 15px;
+            font-weight: 700;
+
+            letter-spacing: 0.12em;
+
+            text-transform: uppercase;
+        }
+
+        /* =====================================================
+           TÍTULO
+        ===================================================== */
+
+        .titulo {
+            margin: 0;
+
+            font-size: 24px;
+            line-height: 1.08;
+
+            font-weight: 700;
+
+            letter-spacing: -0.025em;
+
+            text-transform: uppercase;
+        }
+
+        /* =====================================================
+           DESCRIPCIÓN
+        ===================================================== */
+
+        .subtitulo {
+            max-width: 4.15in;
+
+            margin:
+                0.07in
+                0
+                0.12in;
+
+            font-size: 11px;
+
+            line-height: 1.35;
+
+            color: #5f6368;
+        }
+
+        /* =====================================================
+           LLAMADA AL QR
+        ===================================================== */
+
+        .qr-llamada {
+            margin-bottom: 0.07in;
+
+            font-size: 9px;
+
+            font-weight: 700;
+
+            letter-spacing: 0.10em;
+
+            text-transform: uppercase;
+
+            color: #17191c;
+        }
+
+        /* =====================================================
+           QR
+        ===================================================== */
+
+        .qr-contenedor {
+            width: 2.72in;
+            height: 2.72in;
+
+            padding: 0.11in;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background: white;
+
+            border:
+                1px solid #dedfe2;
+
+            border-radius: 14px;
+
+            box-shadow:
+                0 5px 18px rgba(0, 0, 0, 0.07);
+
+            margin-bottom: 0.07in;
         }
 
         .qr {
-            width: 6cm;
-            height: 6cm;
+            width: 100%;
+            height: 100%;
+
             object-fit: contain;
         }
 
-        .instruccion {
-            margin-top: 12px;
-            font-size: 14px;
-            line-height: 1.4;
+        /* =====================================================
+           MESA
+        ===================================================== */
+
+        .mesa-label {
+            margin-top: 0.01in;
+
+            font-size: 8px;
+
+            font-weight: 600;
+
+            letter-spacing: 0.15em;
+
+            text-transform: uppercase;
+
+            color: #85898f;
+        }
+
+        .mesa {
+            margin-top: 2px;
+
+            font-size: 16px;
+
+            font-weight: 700;
+
+            letter-spacing: 0.03em;
+        }
+
+        /* =====================================================
+           CÓDIGO DE ACCESO
+        ===================================================== */
+
+        .codigo-acceso {
+            width: 100%;
+
+            margin-top: 0.09in;
+
+            padding:
+                0.07in
+                0.11in;
+
+            border:
+                1px solid #e1e2e5;
+
+            border-radius: 9px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 10px;
+
+            text-align: left;
+        }
+
+        .codigo-info {
+            min-width: 0;
         }
 
         .codigo-label {
-            margin-top: 12px;
-            font-size: 12px;
-            color: #666;
+            font-size: 7.8px;
+
+            font-weight: 700;
+
+            letter-spacing: 0.055em;
+
+            text-transform: uppercase;
+
+            color: #85898f;
+
+            margin-bottom: 2px;
+        }
+
+        .codigo-ayuda {
+            font-size: 8px;
+
+            line-height: 1.2;
+
+            color: #62666c;
         }
 
         .codigo {
-            font-size: 24px;
-            font-weight: bold;
-            letter-spacing: 4px;
-            margin-top: 4px;
+            flex: 0 0 auto;
+
+            padding:
+                4px
+                8px;
+
+            border:
+                1px solid #bfc2c7;
+
+            border-radius: 6px;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            letter-spacing: 0.08em;
+
+            color: #17191c;
         }
+
+        /* =====================================================
+           MENSAJE EMOCIONAL
+        ===================================================== */
+
+        .mensaje-principal {
+            width: 100%;
+
+            margin-top: 0.10in;
+
+            padding-top: 0.09in;
+
+            border-top:
+                1px solid #e3e4e7;
+        }
+
+        .mensaje-principal h2 {
+            margin: 0;
+
+            font-size: 12.5px;
+
+            line-height: 1.25;
+
+            font-weight: 700;
+        }
+
+        .mensaje-principal p {
+            margin:
+                0.035in
+                0
+                0;
+
+            font-size: 10px;
+
+            line-height: 1.25;
+
+            color: #5f6368;
+        }
+
+        /* =====================================================
+           INFORMACIÓN INFERIOR
+        ===================================================== */
+
+        .info-grid {
+            width: 100%;
+
+            display: grid;
+
+            grid-template-columns: 1fr 1fr;
+
+            gap: 8px;
+
+            margin-top: 0.12in;
+        }
+
+        .info-box {
+            padding:
+                0.085in
+                0.09in;
+
+            border:
+                1px solid #e4e5e8;
+
+            border-radius: 9px;
+
+            text-align: left;
+        }
+
+        .info-titulo {
+            margin-bottom: 3px;
+
+            font-size: 8px;
+
+            font-weight: 700;
+
+            letter-spacing: 0.05em;
+
+            text-transform: uppercase;
+        }
+
+        .info-texto {
+            font-size: 8.5px;
+
+            line-height: 1.3;
+
+            color: #62666c;
+        }
+
+        /* =====================================================
+           SIN APP
+        ===================================================== */
+
+        .no-app {
+            width: 100%;
+
+            margin-top: 8px;
+
+            padding:
+                0.075in
+                0.09in;
+
+            border:
+                1px solid #e4e5e8;
+
+            border-radius: 9px;
+
+            font-size: 8.5px;
+
+            line-height: 1.3;
+
+            color: #62666c;
+        }
+
+        .no-app strong {
+            display: block;
+
+            margin-bottom: 2px;
+
+            font-size: 8px;
+
+            letter-spacing: 0.05em;
+
+            text-transform: uppercase;
+
+            color: #17191c;
+        }
+
+        /* =====================================================
+           PIE DE PÁGINA
+        ===================================================== */
 
         .footer {
+            width: 100%;
+
             margin-top: auto;
-            font-size: 9px;
-            color: #999;
-            line-height: 1.4;
+
+            padding-top: 0.07in;
+
+            border-top:
+                1px solid #ececee;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            font-size: 7px;
+
+            color: #999da3;
         }
 
+        .footer-marca {
+            font-weight: 600;
+        }
+
+        /* =====================================================
+           BOTÓN DE IMPRESIÓN
+        ===================================================== */
+
         .controles {
-            width: 100%;
-            text-align: center;
-            margin: 20px auto;
+            position: fixed;
+
+            right: 20px;
+            bottom: 20px;
+
+            z-index: 100;
         }
 
         .boton {
-            padding: 10px 18px;
+            padding:
+                11px
+                18px;
+
             border: 0;
-            border-radius: 8px;
-            background: #333;
+
+            border-radius: 9px;
+
+            background: #17191c;
+
             color: white;
+
             cursor: pointer;
+
             font-size: 14px;
+
+            font-weight: 600;
+
+            box-shadow:
+                0 5px 18px rgba(0, 0, 0, 0.18);
         }
+
+        .boton:hover {
+            opacity: 0.88;
+        }
+
+        /* =====================================================
+           IMPRESIÓN
+        ===================================================== */
 
         @media print {
 
+            html,
             body {
+                width: 11in;
+                height: 8.5in;
+
                 background: white;
             }
 
-            .tarjeta {
-                margin: 0;
+            .hoja {
+                width: 11in;
+                height: 8.5in;
+
+                background: white;
             }
 
             .controles {
-                display: none;
+                display: none !important;
             }
 
+            .qr-contenedor {
+                box-shadow: none;
+            }
         }
 
     </style>
 
 </head>
 
-
 <body>
 
-    <div class="tarjeta">
+    <div class="hoja">
 
-        <div class="mesa-numero">
-            MESA {{ mesa.numero }}
-        </div>
+        <!-- =================================================
+             TARJETA IZQUIERDA
+        ================================================== -->
 
-        {% if mesa.nombre %}
+        <div class="tarjeta">
 
-            <div class="mesa-nombre">
-                {{ mesa.nombre }}
+            <div class="marca">
+
+                <div class="marca-icono">
+                    EP
+                </div>
+
+                <div class="marca-texto">
+                    EventPhotos
+                </div>
+
             </div>
 
-        {% endif %}
+
+            <h1 class="titulo">
+                Sé parte del recuerdo
+            </h1>
 
 
-        <img
-            src="{% url 'qr_mesa' slug=evento.slug mesa_id=mesa.id %}"
-            alt="Código QR de {{ mesa.etiqueta }}"
-            class="qr"
-        >
+            <p class="subtitulo">
+                Comparte tus fotos y sé parte del álbum del evento, creado entre todos los invitados.
+            </p>
 
 
-        <div class="instruccion">
-            Escanea el código para compartir
-            tus fotos del evento 📸
+            <div class="qr-llamada">
+                ESCANEA Y COMPARTE TUS FOTOS
+            </div>
+
+
+            <div class="qr-contenedor">
+
+                <img
+                    src="{% url 'qr_mesa' slug=evento.slug mesa_id=mesa.id %}"
+                    alt="Código QR de {{ mesa.etiqueta }}"
+                    class="qr"
+                >
+
+            </div>
+
+
+            <div class="mesa-label">
+                Esta tarjeta pertenece a
+            </div>
+
+
+            <div class="mesa">
+                {{ mesa.etiqueta }}
+            </div>
+
+
+            <div class="codigo-acceso">
+
+                <div class="codigo-info">
+
+                    <div class="codigo-label">
+                        Código de acceso
+                    </div>
+
+                    <div class="codigo-ayuda">
+                        Tenlo a la mano por si el sistema lo solicita.
+                    </div>
+
+                </div>
+
+
+                <div class="codigo">
+                    {{ mesa.codigo_acceso }}
+                </div>
+
+            </div>
+
+
+            <div class="mensaje-principal">
+
+                <h2>
+                    ¡Captura el momento como solo tú lo viste!
+                </h2>
+
+                <p>
+                    Descubre al fotógrafo que llevas dentro.
+                </p>
+
+            </div>
+
+
+            <div class="info-grid">
+
+                <div class="info-box">
+
+                    <div class="info-titulo">
+                        Mira el álbum en tiempo real
+                    </div>
+
+                    <div class="info-texto">
+                        Disfruta las fotos que comparten los demás invitados.
+                    </div>
+
+                </div>
+
+
+                <div class="info-box">
+
+                    <div class="info-titulo">
+                        Álbum abierto 24 horas
+                    </div>
+
+                    <div class="info-texto">
+                        El álbum permanecerá abierto después del evento.
+                        ¡También puedes subir tus fotos mañana!
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="no-app">
+
+                <strong>
+                    No necesitas descargar ninguna app
+                </strong>
+
+                Funciona directamente desde el navegador
+                de tu celular.
+
+            </div>
+
+
+            <div class="footer">
+
+                <span class="footer-marca">
+                    EventPhotos · creado por LuisArt
+                </span>
+
+                <span>
+                    luisart@lotus-nest.com
+                </span>
+
+            </div>
+
         </div>
 
 
-        <div class="codigo-label">
-            Código de acceso
-        </div>
+        <!-- =================================================
+             LÍNEA DE CORTE
+        ================================================== -->
 
-        <div class="codigo">
-            {{ mesa.codigo_acceso }}
-        </div>
+        <div class="corte"></div>
 
 
-        <div class="footer">
-            EventPhotos · creado por LuisArt<br>
-            luisart@lotus-nest.com
+        <!-- =================================================
+             TARJETA DERECHA
+        ================================================== -->
+
+        <div class="tarjeta">
+
+            <div class="marca">
+
+                <div class="marca-icono">
+                    EP
+                </div>
+
+                <div class="marca-texto">
+                    EventPhotos
+                </div>
+
+            </div>
+
+
+            <h1 class="titulo">
+                Sé parte del recuerdo
+            </h1>
+
+
+            <p class="subtitulo">
+                Comparte tus fotos y sé parte del álbum del evento, creado entre todos los invitados.
+            </p>
+
+
+            <div class="qr-llamada">
+                ESCANEA Y COMPARTE TUS FOTOS
+            </div>
+
+
+            <div class="qr-contenedor">
+
+                <img
+                    src="{% url 'qr_mesa' slug=evento.slug mesa_id=mesa.id %}"
+                    alt="Código QR de {{ mesa.etiqueta }}"
+                    class="qr"
+                >
+
+            </div>
+
+
+            <div class="mesa-label">
+                Esta tarjeta pertenece a
+            </div>
+
+
+            <div class="mesa">
+                {{ mesa.etiqueta }}
+            </div>
+
+
+            <div class="codigo-acceso">
+
+                <div class="codigo-info">
+
+                    <div class="codigo-label">
+                        Código de acceso
+                    </div>
+
+                    <div class="codigo-ayuda">
+                        Tenlo a la mano si el sistema lo solicita.
+                    </div>
+
+                </div>
+
+
+                <div class="codigo">
+                    {{ mesa.codigo_acceso }}
+                </div>
+
+            </div>
+
+
+            <div class="mensaje-principal">
+
+                <h2>
+                    ¡Captura el momento como solo tú lo viste!
+                </h2>
+
+                <p>
+                    Descubre al fotógrafo que llevas dentro.
+                </p>
+
+            </div>
+
+
+            <div class="info-grid">
+
+                <div class="info-box">
+
+                    <div class="info-titulo">
+                        Mira el álbum en tiempo real
+                    </div>
+
+                    <div class="info-texto">
+                        Disfruta las fotos que comparten los demás invitados.
+                    </div>
+
+                </div>
+
+
+                <div class="info-box">
+
+                    <div class="info-titulo">
+                        Álbum abierto 24 horas
+                    </div>
+
+                    <div class="info-texto">
+                        El álbum permanecerá abierto después del evento.
+                        ¡También puedes subir tus fotos mañana!
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="no-app">
+
+                <strong>
+                    No necesitas descargar ninguna app
+                </strong>
+
+                Funciona directamente desde el navegador
+                de tu celular.
+
+            </div>
+
+
+            <div class="footer">
+
+                <span class="footer-marca">
+                    EventPhotos · creado por LuisArt
+                </span>
+
+                <span>
+                    luisart@lotus-nest.com
+                </span>
+
+            </div>
+
         </div>
 
     </div>
 
+
+    <!-- =====================================================
+         BOTÓN DE IMPRESIÓN
+    ====================================================== -->
 
     <div class="controles">
 
@@ -180,11 +870,10 @@
             class="boton"
             onclick="window.print()"
         >
-            🖨️ Imprimir
+            Imprimir
         </button>
 
     </div>
 
 </body>
-
 </html>

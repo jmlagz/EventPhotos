@@ -255,8 +255,9 @@ def mesa_publica(request, slug, token):
             },
         )
 
-    # Si la sesión ya está autorizada y ya aceptó
-    # las instrucciones, puede ir directamente a subir fotos.
+    # Si la sesión ya está autorizada para esta mesa
+    # y ya aceptó el consentimiento, puede ir
+    # directamente a subir fotos.
     if (
         request.session.get("mesa_id") == mesa.id
         and request.session.get("instrucciones_aceptadas")
@@ -267,25 +268,25 @@ def mesa_publica(request, slug, token):
             token=mesa.token,
         )
 
-    if request.method == "POST":
+    # El QR/token identifica directamente la mesa.
+    # Ya no se solicita ni se valida código de acceso.
+    if request.session.get("mesa_id") != mesa.id:
 
-        codigo = request.POST.get(
-            "codigo",
-            "",
-        ).strip()
+        request.session.cycle_key()
+
+        request.session["mesa_id"] = mesa.id
+        request.session["evento_id"] = evento.id
+
+        # La sesión durará 4 horas.
+        request.session.set_expiry(
+            60 * 60 * 4
+        )
+
+    if request.method == "POST":
 
         acepto = request.POST.get("acepto")
 
         errores = []
-
-        # Si todavía no existe una sesión autorizada,
-        # debemos comprobar el código.
-        if request.session.get("mesa_id") != mesa.id:
-
-            if codigo != mesa.codigo_acceso:
-                errores.append(
-                    "El código de acceso no es correcto."
-                )
 
         # El consentimiento siempre debe existir.
         if acepto != "on":
@@ -295,20 +296,6 @@ def mesa_publica(request, slug, token):
             )
 
         if not errores:
-
-            # Solo rotamos la sesión cuando estamos
-            # autorizando una mesa por primera vez.
-            if request.session.get("mesa_id") != mesa.id:
-
-                request.session.cycle_key()
-
-                request.session["mesa_id"] = mesa.id
-                request.session["evento_id"] = evento.id
-
-                # La sesión durará 4 horas.
-                request.session.set_expiry(
-                    60 * 60 * 4
-                )
 
             request.session["instrucciones_aceptadas"] = True
 
@@ -325,7 +312,6 @@ def mesa_publica(request, slug, token):
                 "evento": evento,
                 "mesa": mesa,
                 "errores": errores,
-                "codigo_ingresado": codigo,
             },
         )
 
@@ -336,7 +322,6 @@ def mesa_publica(request, slug, token):
             "evento": evento,
             "mesa": mesa,
             "errores": [],
-            "codigo_ingresado": "",
         },
     )
 
@@ -857,10 +842,24 @@ def album_publico(request, slug):
                 "url": generar_url_lectura(
                     foto.object_key
                 ),
-                        "puede_eliminar": (
-                            foto.uploader_hash == uploader_hash
-                        ),
+                "puede_eliminar": (
+                    foto.uploader_hash == uploader_hash
+                ),
             }
+        )
+
+    imagen_portada_url = None
+
+    if evento.imagen_portada_key:
+        imagen_portada_url = generar_url_lectura(
+            evento.imagen_portada_key
+        )
+
+    logo_url = None
+
+    if evento.logo_key:
+        logo_url = generar_url_lectura(
+            evento.logo_key
         )
 
     return render(
@@ -869,6 +868,8 @@ def album_publico(request, slug):
         {
             "evento": evento,
             "fotos": fotos_album,
+            "imagen_portada_url": imagen_portada_url,
+            "logo_url": logo_url,
         },
     )
 

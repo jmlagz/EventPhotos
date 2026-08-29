@@ -255,6 +255,28 @@ button,
     box-shadow: none;
 }
 
+.boton-album {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 750;
+    text-decoration: none;
+    transition: .2s;
+}
+
+.boton-album:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #fafaff;
+    transform: translateY(-1px);
+}
+
 @media (max-width: 600px) {
     .galeria {
         grid-template-columns: repeat(3, 1fr);
@@ -326,6 +348,12 @@ button,
         >
             🚀 Compartir fotos
         </button>
+        <a
+            class="boton-album"
+            href="{% url 'album_publico' slug=evento.slug %}"
+        >
+            🖼️ Ver álbum del evento
+        </a>
     </section>
 
     

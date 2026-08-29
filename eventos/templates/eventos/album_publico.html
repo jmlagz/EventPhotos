@@ -43,12 +43,78 @@
             color: var(--text);
         }
 
-        .encabezado {
-            padding: 38px 20px 30px;
+        .hero-evento {
+            position: relative;
+            min-height: 315px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 34px 20px 92px;
+            overflow: visible;
             text-align: center;
             background: linear-gradient(135deg, #635bff 0%, #7c5cff 55%, #8b5cf6 100%);
             color: white;
-            box-shadow: 0 8px 24px rgba(99, 91, 255, 0.18);
+            box-shadow: 0 10px 28px rgba(99, 91, 255, 0.18);
+        }
+
+        .hero-portada {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .hero-overlay {
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(
+                    to bottom,
+                    rgba(8, 10, 18, 0.08),
+                    rgba(8, 10, 18, 0.18) 45%,
+                    rgba(8, 10, 18, 0.58)
+                );
+        }
+
+        .hero-contenido {
+            position: relative;
+            z-index: 2;
+            width: min(1200px, 100%);
+        }
+
+        .hero-contenido .marca {
+            margin-bottom: 12px;
+        }
+
+        .hero-contenido h1 {
+            margin: 0;
+            font-size: clamp(28px, 5vw, 44px);
+            line-height: 1.15;
+            font-weight: 800;
+            text-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+        }
+
+        .hero-contenido .contador {
+            margin-top: 10px;
+            font-size: 15px;
+            opacity: 0.92;
+        }
+
+        .logo-evento {
+            position: absolute;
+            z-index: 5;
+            left: 50%;
+            bottom: -52px;
+            transform: translateX(-50%);
+            width: 108px;
+            height: 108px;
+            padding: 7px;
+            border-radius: 21px;
+            background: white;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 14px 36px rgba(31, 41, 55, 0.18);
+            object-fit: contain;
         }
 
         .marca {
@@ -74,23 +140,10 @@
             font-size: 18px;
         }
 
-        .encabezado h1 {
-            margin: 0;
-            font-size: clamp(28px, 5vw, 42px);
-            line-height: 1.15;
-            font-weight: 800;
-        }
-
-        .contador {
-            margin-top: 10px;
-            font-size: 15px;
-            opacity: 0.88;
-        }
-
         .contenido {
             width: min(1400px, 100%);
             margin: 0 auto;
-            padding: 24px;
+            padding: 24px 24px 24px;
         }
 
         .barra-info {
@@ -98,22 +151,24 @@
             align-items: center;
             justify-content: space-between;
             gap: 16px;
-            margin-bottom: 20px;
-            padding: 16px 18px;
-            background: rgba(255, 255, 255, 0.86);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(10px);
+            margin-bottom: 18px;
+            padding: 4px 2px 14px;
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0;
+            box-shadow: none;
         }
 
         .barra-titulo {
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.045em;
+            text-transform: uppercase;
         }
 
         .barra-subtitulo {
-            margin-top: 3px;
+            margin-top: 4px;
             color: var(--muted);
             font-size: 13px;
         }
@@ -328,13 +383,24 @@
         }
 
         @media (max-width: 600px) {
+            .hero-evento {
+                min-height: 285px;
+                padding: 30px 16px 82px;
+            }
+
+            .logo-evento {
+                width: 96px;
+                height: 96px;
+                bottom: -47px;
+                border-radius: 19px;
+            }
+
             .contenido {
-                padding: 14px;
+                padding: 20px 14px 14px;
             }
 
             .barra-info {
-                padding: 14px;
-                border-radius: 15px;
+                padding: 4px 1px 12px;
             }
 
             .galeria {
@@ -350,11 +416,11 @@
         ========================= */
 
         .bienvenida-evento {
-            width: min(900px, calc(100% - 32px));
+            width: min(760px, calc(100% - 32px));
 
-            margin: 24px auto 20px;
+            margin: 54px auto 0;
 
-            padding: 34px 38px;
+            padding: 28px 34px;
 
             position: relative;
             overflow: hidden;
@@ -396,9 +462,8 @@
         }
 
         .bienvenida-icono {
-            margin-bottom: 10px;
-
-            font-size: 26px;
+            margin-bottom: 7px;
+            font-size: 23px;
         }
 
         .bienvenida-etiqueta {
@@ -413,27 +478,22 @@
         }
 
         .bienvenida-contenido h2 {
-            margin: 0 0 16px;
-
+            margin: 0 0 10px;
             color: var(--text);
-
-            font-size: clamp(22px, 4vw, 30px);
+            font-size: clamp(22px, 4vw, 29px);
             line-height: 1.2;
         }
 
         .bienvenida-contenido p {
             max-width: 680px;
-
             margin: 0 auto;
-
             color: var(--muted);
-
-            font-size: 16px;
-            line-height: 1.7;
+            font-size: 15px;
+            line-height: 1.6;
         }
 
         .bienvenida-decoracion {
-            margin-top: 18px;
+            margin-top: 13px;
 
             color: #8b5cf6;
 
@@ -446,11 +506,8 @@
 
             .bienvenida-evento {
                 width: calc(100% - 28px);
-
-                margin: 18px auto;
-
-                padding: 28px 20px;
-
+                margin: 50px auto 0;
+                padding: 24px 18px;
                 border-radius: 20px;
             }
 
@@ -467,23 +524,45 @@
 <body>
 
 
-    <header class="encabezado">
+    <header class="hero-evento">
 
-        <div class="marca">
-            <span class="marca-icono">📸</span>
-            <span>EventPhotos</span>
+        {% if imagen_portada_url %}
+            <img
+                class="hero-portada"
+                src="{{ imagen_portada_url }}"
+                alt="Imagen de portada de {{ evento.nombre }}"
+            >
+        {% endif %}
+
+        <div class="hero-overlay"></div>
+
+        <div class="hero-contenido">
+
+            <div class="marca">
+                <span class="marca-icono">📸</span>
+                <span>EventPhotos</span>
+            </div>
+
+            <h1>{{ evento.nombre }}</h1>
+
+            <div class="contador">
+                {{ fotos|length }}
+                {% if fotos|length == 1 %}
+                    foto compartida
+                {% else %}
+                    fotos compartidas
+                {% endif %}
+            </div>
+
         </div>
 
-        <h1>{{ evento.nombre }}</h1>
-
-        <div class="contador">
-            {{ fotos|length }}
-            {% if fotos|length == 1 %}
-                foto compartida
-            {% else %}
-                fotos compartidas
-            {% endif %}
-        </div>
+        {% if logo_url %}
+            <img
+                class="logo-evento"
+                src="{{ logo_url }}"
+                alt="Logo de {{ evento.nombre }}"
+            >
+        {% endif %}
 
     </header>
 
