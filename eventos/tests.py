@@ -1,11 +1,14 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from threading import Barrier
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.test import TestCase, override_settings
+from django.db import close_old_connections, connection
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
@@ -15,7 +18,8 @@ from .limites import (
     MAX_STORAGE_POR_EVENTO,
     MAX_TAMANO_FOTO,
 )
-from .models import Evento, Foto, Mesa
+from .models import Evento, Foto, Mesa, UploadIntent
+from .r2 import UPLOAD_URL_EXPIRATION_SECONDS
 
 
 class EventTemporalFieldsTests(TestCase):
@@ -403,6 +407,344 @@ class EventTemporalPolicyTests(TestCase):
 
         self.assertTrue(event.permite_album_publico(now))
         self.assertFalse(event.permite_album_publico(now + timedelta(microseconds=1)))
+
+
+class UploadIntentPresignTests(TestCase):
+    def setUp(self):
+        self.event = Evento.objects.create(
+            nombre="Evento con reservas",
+            fecha=date(2026, 9, 2),
+            estado=Evento.Estado.ACTIVE,
+        )
+        self.table = Mesa.objects.create(evento=self.event, numero=1)
+        self.authorize_upload()
+
+    def authorize_upload(self, client=None, consent=True):
+        client = client or self.client
+        session = client.session
+        session["mesa_id"] = self.table.id
+        session["evento_id"] = self.event.id
+        if consent:
+            session["instrucciones_aceptadas"] = True
+        session.save()
+
+    def upload_url(self, table=None):
+        table = table or self.table
+        return reverse(
+            "solicitar_url_subida",
+            args=[self.event.slug, table.token],
+        )
+
+    def upload_data(self, hash_sha256="a" * 64, tamaño=1024):
+        return {
+            "nombre": "foto-invitado.jpg",
+            "content_type": "image/jpeg",
+            "hash_sha256": hash_sha256,
+            "tamaño": str(tamaño),
+        }
+
+    def create_pending_intent(self, tamaño, expires_at):
+        return UploadIntent.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key=f"eventos/{self.event.slug}/reserva-{UploadIntent.objects.count()}.jpg",
+            nombre_original="reserva.jpg",
+            content_type_declarado="image/jpeg",
+            tamaño_declarado=tamaño,
+            hash_declarado="b" * 64,
+            expires_at=expires_at,
+        )
+
+    def create_photos(self, cantidad):
+        Foto.objects.bulk_create(
+            [
+                Foto(
+                    evento=self.event,
+                    mesa=self.table,
+                    object_key=f"eventos/test/reserva-{index}.jpg",
+                    nombre_original=f"reserva-{index}.jpg",
+                    content_type="image/jpeg",
+                    tamaño=1,
+                    hash_sha256=f"{index:064x}",
+                )
+                for index in range(cantidad)
+            ]
+        )
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_valid_presign_creates_pending_intent_and_returns_id(self, generate_url):
+        response = self.client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 200)
+        intent = UploadIntent.objects.get()
+        payload = response.json()
+        self.assertEqual(payload["upload_intent_id"], str(intent.id))
+        self.assertEqual(payload["object_key"], intent.object_key)
+        self.assertEqual(intent.estado, UploadIntent.Estado.PENDING)
+        self.assertEqual(intent.evento, self.event)
+        self.assertEqual(intent.mesa, self.table)
+        self.assertEqual(intent.tamaño_declarado, 1024)
+        self.assertIn(str(intent.id), intent.object_key)
+        self.assertTrue(
+            intent.object_key.startswith(
+                f"eventos/{self.event.slug}/mesas/{self.table.token}/upload-intents/"
+            )
+        )
+        self.assertNotIn("foto-invitado", intent.object_key)
+        self.assertAlmostEqual(
+            (intent.expires_at - intent.created_at).total_seconds(),
+            UPLOAD_URL_EXPIRATION_SECONDS,
+            delta=2,
+        )
+        self.assertGreater(intent.expires_at, timezone.now())
+        generate_url.assert_called_once_with(
+            object_key=intent.object_key,
+            content_type="image/jpeg",
+        )
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_each_presign_uses_a_unique_intent_object_key(self, _generate_url):
+        first_response = self.client.post(
+            self.upload_url(),
+            self.upload_data(hash_sha256="c" * 64),
+        )
+        second_response = self.client.post(
+            self.upload_url(),
+            self.upload_data(hash_sha256="d" * 64),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertNotEqual(
+            first_response.json()["object_key"],
+            second_response.json()["object_key"],
+        )
+        self.assertEqual(UploadIntent.objects.count(), 2)
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_reservation_clock_is_read_after_event_lock(self, _generate_url):
+        call_order = []
+        locked_now = datetime(
+            2026,
+            9,
+            2,
+            18,
+            0,
+            tzinfo=ZoneInfo("UTC"),
+        )
+        pre_lock_now = locked_now - timedelta(hours=1)
+        select_for_update = Evento.objects.select_for_update
+
+        def record_lock(*args, **kwargs):
+            call_order.append("lock")
+            return select_for_update(*args, **kwargs)
+
+        def record_now():
+            call_order.append("now")
+            if "lock" in call_order:
+                return locked_now
+            return pre_lock_now
+
+        with patch.object(
+            Evento.objects,
+            "select_for_update",
+            side_effect=record_lock,
+        ), patch("eventos.views.timezone.now", side_effect=record_now):
+            response = self.client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 200)
+        lock_index = call_order.index("lock")
+        self.assertIn("now", call_order[lock_index + 1:])
+        intent = UploadIntent.objects.get()
+        self.assertEqual(
+            intent.expires_at,
+            locked_now + timedelta(seconds=UPLOAD_URL_EXPIRATION_SECONDS),
+        )
+
+    @patch("eventos.views.generar_url_subida")
+    def test_pending_reservation_counts_toward_photo_limit(self, generate_url):
+        self.create_photos(MAX_FOTOS_POR_EVENTO - 1)
+        self.create_pending_intent(
+            tamaño=1,
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        response = self.client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(UploadIntent.objects.count(), 1)
+        generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_pending_reservation_counts_toward_storage_limit(self, generate_url):
+        self.create_pending_intent(
+            tamaño=MAX_STORAGE_POR_EVENTO - 512,
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        response = self.client.post(
+            self.upload_url(),
+            self.upload_data(tamaño=1024),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(UploadIntent.objects.count(), 1)
+        generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_expired_intent_does_not_reserve_quota(self, generate_url):
+        expired_intent = self.create_pending_intent(
+            tamaño=MAX_STORAGE_POR_EVENTO,
+            expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        response = self.client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(expired_intent.estado, UploadIntent.Estado.PENDING)
+        self.assertEqual(UploadIntent.objects.count(), 2)
+        generate_url.assert_called_once()
+
+    @patch("eventos.views.generar_url_subida", side_effect=RuntimeError("firma fallida"))
+    def test_signing_failure_cancels_reservation(self, generate_url):
+        response = self.client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 500)
+        intent = UploadIntent.objects.get()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CANCELLED)
+        generate_url.assert_called_once()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_closed_or_expired_event_blocks_before_reserving(self, generate_url):
+        cases = [
+            (Evento.Estado.CLOSED, timezone.now() + timedelta(hours=1)),
+            (Evento.Estado.ACTIVE, timezone.now() - timedelta(seconds=1)),
+        ]
+
+        for estado, upload_until in cases:
+            with self.subTest(estado=estado, upload_until=upload_until):
+                self.event.estado = estado
+                self.event.upload_until = upload_until
+                self.event.save(update_fields=["estado", "upload_until"])
+
+                response = self.client.post(self.upload_url(), self.upload_data())
+
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(UploadIntent.objects.exists())
+                generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_table_session_and_consent_are_required_before_reserving(
+        self,
+        generate_url,
+    ):
+        no_session_client = Client()
+        no_session_response = no_session_client.post(
+            self.upload_url(),
+            self.upload_data(),
+        )
+
+        no_consent_client = Client()
+        self.authorize_upload(client=no_consent_client, consent=False)
+        no_consent_response = no_consent_client.post(
+            self.upload_url(),
+            self.upload_data(),
+        )
+
+        inactive_table = Mesa.objects.create(
+            evento=self.event,
+            numero=2,
+            activa=False,
+        )
+        inactive_client = Client()
+        session = inactive_client.session
+        session["mesa_id"] = inactive_table.id
+        session["evento_id"] = self.event.id
+        session["instrucciones_aceptadas"] = True
+        session.save()
+        inactive_response = inactive_client.post(
+            self.upload_url(table=inactive_table),
+            self.upload_data(),
+        )
+
+        self.assertEqual(no_session_response.status_code, 403)
+        self.assertEqual(no_consent_response.status_code, 403)
+        self.assertEqual(inactive_response.status_code, 404)
+        self.assertFalse(UploadIntent.objects.exists())
+        generate_url.assert_not_called()
+
+
+class UploadIntentConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.event = Evento.objects.create(
+            nombre="Evento concurrente",
+            fecha=date(2026, 9, 2),
+            estado=Evento.Estado.ACTIVE,
+        )
+        self.table = Mesa.objects.create(evento=self.event, numero=1)
+        Foto.objects.bulk_create(
+            [
+                Foto(
+                    evento=self.event,
+                    mesa=self.table,
+                    object_key=f"eventos/test/concurrente-{index}.jpg",
+                    nombre_original=f"concurrente-{index}.jpg",
+                    content_type="image/jpeg",
+                    tamaño=1,
+                    hash_sha256=f"{index:064x}",
+                )
+                for index in range(MAX_FOTOS_POR_EVENTO - 1)
+            ]
+        )
+
+    def authorized_client(self):
+        client = Client()
+        session = client.session
+        session["mesa_id"] = self.table.id
+        session["evento_id"] = self.event.id
+        session["instrucciones_aceptadas"] = True
+        session.save()
+        return client
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_concurrent_presigns_reserve_only_remaining_photo(self, generate_url):
+        if connection.vendor != "postgresql":
+            self.skipTest("La prueba requiere select_for_update de PostgreSQL.")
+
+        url = reverse(
+            "solicitar_url_subida",
+            args=[self.event.slug, self.table.token],
+        )
+        barrier = Barrier(2)
+        clients = [self.authorized_client(), self.authorized_client()]
+
+        def request_presign(index):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return clients[index].post(
+                    url,
+                    {
+                        "nombre": f"foto-{index}.jpg",
+                        "content_type": "image/jpeg",
+                        "hash_sha256": str(index + 1) * 64,
+                        "tamaño": "1024",
+                    },
+                ).status_code
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            statuses = list(executor.map(request_presign, range(2)))
+
+        self.assertCountEqual(statuses, [200, 400])
+        self.assertEqual(
+            UploadIntent.objects.filter(
+                estado=UploadIntent.Estado.PENDING,
+            ).count(),
+            1,
+        )
+        self.assertEqual(generate_url.call_count, 1)
 
 
 class EventTemporalMaterializationTests(TestCase):

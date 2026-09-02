@@ -2,6 +2,9 @@ import boto3
 from django.conf import settings
 
 
+UPLOAD_URL_EXPIRATION_SECONDS = 300
+
+
 def get_r2_client():
     return boto3.client(
         "s3",
@@ -22,7 +25,7 @@ def generar_url_subida(object_key, content_type):
             "Key": object_key,
             "ContentType": content_type,
         },
-        ExpiresIn=300,
+        ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
     )
 
 def generar_url_lectura(object_key):

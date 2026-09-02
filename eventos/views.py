@@ -1,13 +1,15 @@
 import hashlib
 import secrets
 import io
+import uuid
 import zipfile
 import qrcode
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 
-from django.db.models import Sum
+from django.db import transaction
+from django.db.models import Count, Sum
 from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
@@ -47,11 +49,13 @@ from .models import (
     Evento,
     Mesa,
     Foto,
+    UploadIntent,
     InvitacionAnfitrion,
     InvitacionUsuario,
 )
 
 from .r2 import (
+    UPLOAD_URL_EXPIRATION_SECONDS,
     get_r2_client,
     generar_url_lectura,
     generar_url_subida,
@@ -509,46 +513,6 @@ def solicitar_url_subida(request, slug, token):
             status=400,
         )
 
-    # Contamos únicamente las fotos que siguen activas.
-    fotos_actuales = Foto.objects.filter(
-        evento=evento,
-        eliminada_at__isnull=True,
-    ).count()
-
-    if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
-        return JsonResponse(
-            {
-                "error": (
-                    "Este evento ha alcanzado el límite "
-                    "de 450 fotos."
-                )
-            },
-            status=400,
-        )
-
-    # Calculamos el almacenamiento actualmente utilizado.
-    almacenamiento_actual = (
-        Foto.objects
-        .filter(
-            evento=evento,
-            eliminada_at__isnull=True,
-        )
-        .aggregate(total=Sum("tamaño"))
-        .get("total")
-        or 0
-    )
-
-    if almacenamiento_actual + tamaño > MAX_STORAGE_POR_EVENTO:
-        return JsonResponse(
-            {
-                "error": (
-                    "Este evento ha alcanzado su límite "
-                    "de almacenamiento."
-                )
-            },
-            status=400,
-        )
-
     if len(hash_sha256) != 64:
         return JsonResponse(
             {"error": "Hash SHA-256 inválido."},
@@ -569,11 +533,6 @@ def solicitar_url_subida(request, slug, token):
             status=400,
         )
 
-    # Generamos una clave única para evitar colisiones.
-    import uuid
-
-    extension = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else "jpg"
-
     if Foto.objects.filter(
         evento=evento,
         hash_sha256=hash_sha256,
@@ -585,11 +544,104 @@ def solicitar_url_subida(request, slug, token):
             }
         )
 
+    extension_por_tipo = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/heic": "heic",
+        "image/heif": "heif",
+    }
+    intent_id = uuid.uuid4()
+    extension = extension_por_tipo[content_type]
     object_key = (
         f"eventos/{evento.slug}/"
         f"mesas/{mesa.token}/"
-        f"{uuid.uuid4().hex}.{extension}"
+        f"upload-intents/{intent_id}.{extension}"
     )
+    with transaction.atomic():
+        evento_bloqueado = Evento.objects.select_for_update().get(
+            pk=evento.pk
+        )
+        ahora = timezone.now()
+        expires_at = ahora + timedelta(
+            seconds=UPLOAD_URL_EXPIRATION_SECONDS
+        )
+
+        if not evento_bloqueado.permite_carga(ahora):
+            error = (
+                "Este evento ya está cerrado y no acepta nuevas fotos."
+                if evento_bloqueado.estado == Evento.Estado.CLOSED
+                else "Este evento no acepta nuevas fotos."
+            )
+
+            return JsonResponse(
+                {"error": error},
+                status=403,
+            )
+
+        fotos = Foto.objects.filter(
+            evento=evento_bloqueado,
+            eliminada_at__isnull=True,
+        ).aggregate(
+            cantidad=Count("id"),
+            almacenamiento=Sum("tamaño"),
+        )
+        reservas = UploadIntent.objects.filter(
+            evento=evento_bloqueado,
+            estado=UploadIntent.Estado.PENDING,
+            expires_at__gt=ahora,
+        ).aggregate(
+            cantidad=Count("id"),
+            almacenamiento=Sum("tamaño_declarado"),
+        )
+
+        fotos_actuales = fotos["cantidad"] or 0
+        almacenamiento_actual = fotos["almacenamiento"] or 0
+        reservas_actuales = reservas["cantidad"] or 0
+        almacenamiento_reservado = reservas["almacenamiento"] or 0
+
+        if (
+            fotos_actuales
+            + reservas_actuales
+            + 1
+            > MAX_FOTOS_POR_EVENTO
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado el límite "
+                        "de 450 fotos."
+                    )
+                },
+                status=400,
+            )
+
+        if (
+            almacenamiento_actual
+            + almacenamiento_reservado
+            + tamaño
+            > MAX_STORAGE_POR_EVENTO
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado su límite "
+                        "de almacenamiento."
+                    )
+                },
+                status=400,
+            )
+
+        upload_intent = UploadIntent.objects.create(
+            id=intent_id,
+            evento=evento_bloqueado,
+            mesa=mesa,
+            object_key=object_key,
+            nombre_original=nombre,
+            content_type_declarado=content_type,
+            tamaño_declarado=tamaño,
+            hash_declarado=hash_sha256,
+            expires_at=expires_at,
+        )
 
     try:
         url = generar_url_subida(
@@ -597,6 +649,11 @@ def solicitar_url_subida(request, slug, token):
             content_type=content_type,
         )
     except Exception:
+        UploadIntent.objects.filter(
+            pk=upload_intent.pk,
+            estado=UploadIntent.Estado.PENDING,
+        ).update(estado=UploadIntent.Estado.CANCELLED)
+
         return JsonResponse(
             {"error": "No fue posible generar la URL de subida."},
             status=500,
@@ -606,6 +663,7 @@ def solicitar_url_subida(request, slug, token):
         {
             "url": url,
             "object_key": object_key,
+            "upload_intent_id": str(upload_intent.id),
         }
     )
 

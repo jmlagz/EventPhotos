@@ -1,5 +1,6 @@
 import secrets
 import string
+import uuid
 from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -374,6 +375,68 @@ class Foto(models.Model):
                 name="unique_foto_por_evento",
             )
         ]
+
+
+class UploadIntent(models.Model):
+
+    class Estado(models.TextChoices):
+        PENDING = "pending", "Pendiente"
+        CONFIRMED = "confirmed", "Confirmada"
+        CANCELLED = "cancelled", "Cancelada"
+        EXPIRED = "expired", "Expirada"
+        CLEANUP_PENDING = "cleanup_pending", "Limpieza pendiente"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name="upload_intents",
+    )
+
+    mesa = models.ForeignKey(
+        Mesa,
+        on_delete=models.CASCADE,
+        related_name="upload_intents",
+    )
+
+    object_key = models.CharField(
+        max_length=500,
+        unique=True,
+    )
+
+    nombre_original = models.CharField(max_length=255)
+    content_type_declarado = models.CharField(max_length=100)
+    tamaño_declarado = models.PositiveBigIntegerField()
+    hash_declarado = models.CharField(max_length=64)
+
+    estado = models.CharField(
+        max_length=20,
+        choices=Estado.choices,
+        default=Estado.PENDING,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    tamaño_real = models.PositiveBigIntegerField(null=True, blank=True)
+
+    foto = models.OneToOneField(
+        Foto,
+        on_delete=models.SET_NULL,
+        related_name="upload_intent",
+        null=True,
+        blank=True,
+    )
+
+    def __str__(self):
+        return f"Intento de subida {self.id}"
+
+
 class InvitacionAnfitrion(models.Model):
     usuario = models.ForeignKey(
         User,
