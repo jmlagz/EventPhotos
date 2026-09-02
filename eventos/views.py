@@ -3,6 +3,7 @@ import secrets
 import io
 import zipfile
 import qrcode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 
@@ -29,7 +30,7 @@ from .limites import (
 )
 
 from django.shortcuts import get_object_or_404, redirect, render
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.conf import settings
@@ -60,6 +61,7 @@ from .r2 import (
 
 from .forms import (
     EventoForm,
+    EventoTemporalForm,
     UsuarioForm,
     ActivarCuentaForm,
 )
@@ -74,6 +76,52 @@ def obtener_uploader_hash(request):
     return hashlib.sha256(
         uploader_token.encode("utf-8")
     ).hexdigest()
+
+
+def contexto_ciclo_temporal(evento):
+    event_timezone = None
+
+    if evento.timezone:
+        try:
+            event_timezone = ZoneInfo(evento.timezone)
+        except ZoneInfoNotFoundError:
+            pass
+
+    def formatear_fecha(value):
+        if value is None:
+            return "No configurado"
+
+        if event_timezone is not None:
+            value = timezone.localtime(value, event_timezone)
+
+        return value.strftime("%d/%m/%Y, %H:%M")
+
+    if evento.estado != Evento.Estado.ACTIVE:
+        estado_carga = "Cerrada por estado del evento"
+    elif evento.upload_until is None:
+        estado_carga = "No configurada"
+    elif evento.permite_carga():
+        estado_carga = "Disponible"
+    else:
+        estado_carga = "Periodo de carga finalizado"
+
+    if evento.available_until is None:
+        estado_album = "No configurado"
+    elif evento.permite_album_publico():
+        estado_album = "Disponible"
+    elif evento.estado == Evento.Estado.ARCHIVED:
+        estado_album = "No disponible por estado del evento"
+    else:
+        estado_album = "Periodo de disponibilidad finalizado"
+
+    return {
+        "fin_planeado": formatear_fecha(evento.fin_planeado),
+        "timezone": evento.timezone or "No configurada",
+        "upload_until": formatear_fecha(evento.upload_until),
+        "available_until": formatear_fecha(evento.available_until),
+        "estado_carga": estado_carga,
+        "estado_album": estado_album,
+    }
 
 password_reset_request = PasswordResetView.as_view(
     template_name="eventos/password_reset.html",
@@ -245,7 +293,7 @@ def mesa_publica(request, slug, token):
 
     # Evento cerrado:
     # no permite iniciar ni continuar el flujo de subida.
-    if evento.estado == Evento.Estado.CLOSED:
+    if not evento.permite_carga():
         return render(
             request,
             "eventos/evento_cerrado.html",
@@ -335,7 +383,7 @@ def subir_fotos(request, slug, token):
         ],
     )
 
-    if evento.estado == Evento.Estado.CLOSED:
+    if not evento.permite_carga():
         return render(
             request,
             "eventos/evento_cerrado.html",
@@ -388,9 +436,15 @@ def solicitar_url_subida(request, slug, token):
     )
 
     # Los eventos cerrados ya no aceptan nuevas fotos.
-    if evento.estado == Evento.Estado.CLOSED:
+    if not evento.permite_carga():
+        error = (
+            "Este evento ya está cerrado y no acepta nuevas fotos."
+            if evento.estado == Evento.Estado.CLOSED
+            else "Este evento no acepta nuevas fotos."
+        )
+
         return JsonResponse(
-            {"error": "Este evento ya está cerrado y no acepta nuevas fotos."},
+            {"error": error},
             status=403,
         )
 
@@ -567,9 +621,15 @@ def confirmar_subida(request, slug, token):
     )
 
     # Los eventos cerrados ya no aceptan nuevas fotos.
-    if evento.estado == Evento.Estado.CLOSED:
+    if not evento.permite_carga():
+        error = (
+            "Este evento ya está cerrado y no acepta nuevas fotos."
+            if evento.estado == Evento.Estado.CLOSED
+            else "Este evento no acepta nuevas fotos."
+        )
+
         return JsonResponse(
-            {"error": "Este evento ya está cerrado y no acepta nuevas fotos."},
+            {"error": error},
             status=403,
         )
 
@@ -823,6 +883,9 @@ def album_publico(request, slug):
             Evento.Estado.CLOSED,
         ],
     )
+
+    if not evento.permite_album_publico():
+        raise Http404("Álbum no disponible.")
 
     fotos = Foto.objects.filter(
         evento=evento,
@@ -1573,6 +1636,25 @@ def crear_usuario(request):
 def dashboard_evento(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
 
+    if request.method == "POST":
+        temporal_form = EventoTemporalForm(request.POST, instance=evento)
+
+        if temporal_form.is_valid():
+            evento = temporal_form.save(commit=False)
+
+            if evento.fin_planeado:
+                evento.materializar_ventana_carga(evento.fin_planeado)
+
+            evento.save()
+            messages.success(
+                request,
+                "La configuración temporal del evento fue actualizada.",
+            )
+
+            return redirect("dashboard_evento", slug=evento.slug)
+    else:
+        temporal_form = EventoTemporalForm(instance=evento)
+
     fotos_actuales = Foto.objects.filter(
         evento=evento,
         eliminada_at__isnull=True,
@@ -1624,6 +1706,8 @@ def dashboard_evento(request, slug):
             "max_almacenamiento": MAX_STORAGE_POR_EVENTO,
             "imagen_portada_url": imagen_portada_url,
             "logo_url": logo_url,
+            "temporal_form": temporal_form,
+            "ciclo_temporal": contexto_ciclo_temporal(evento),
         },
     )
 
@@ -1986,12 +2070,9 @@ def configurar_mesas(request, slug):
         },
     )
 
+@login_required
 def qr_mesa(request, slug, mesa_id):
-
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-    )
+    evento = obtener_evento_del_usuario(request, slug)
 
     mesa = get_object_or_404(
         Mesa,

@@ -687,6 +687,65 @@
             </strong>
         </p>
 
+        <h3 style="margin-top: 24px;">
+            Ciclo temporal
+        </h3>
+
+        <form method="post" style="margin-top: 12px;">
+            {% csrf_token %}
+
+            {% if temporal_form.non_field_errors %}
+                <div class="form-errors">
+                    {{ temporal_form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <p>
+                {{ temporal_form.fin_planeado.label_tag }}
+                {{ temporal_form.fin_planeado }}
+                {% if temporal_form.fin_planeado.errors %}
+                    {{ temporal_form.fin_planeado.errors }}
+                {% endif %}
+            </p>
+
+            <p>
+                {{ temporal_form.timezone.label_tag }}
+                {{ temporal_form.timezone }}
+                <br>
+                <small>{{ temporal_form.timezone.help_text }}</small>
+                {% if temporal_form.timezone.errors %}
+                    {{ temporal_form.timezone.errors }}
+                {% endif %}
+            </p>
+
+            <button type="submit" class="button">
+                Guardar configuración temporal
+            </button>
+        </form>
+
+        <div style="margin-top: 18px;">
+            <p>
+                Fin planeado del evento:
+                <strong>{{ ciclo_temporal.fin_planeado }}</strong>
+            </p>
+            <p>
+                Zona horaria:
+                <strong>{{ ciclo_temporal.timezone }}</strong>
+            </p>
+            <p>
+                Carga de fotos disponible hasta:
+                <strong>{{ ciclo_temporal.upload_until }}</strong>
+                <br>
+                <small>{{ ciclo_temporal.estado_carga }}</small>
+            </p>
+            <p>
+                Álbum disponible hasta:
+                <strong>{{ ciclo_temporal.available_until }}</strong>
+                <br>
+                <small>{{ ciclo_temporal.estado_album }}</small>
+            </p>
+        </div>
+
         {% if evento.estado == "draft" %}
             <form
                 method="post"

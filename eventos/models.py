@@ -1,8 +1,13 @@
 import secrets
 import string
+from datetime import timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 
@@ -88,6 +93,27 @@ class Evento(models.Model):
         default=Estado.DRAFT,
     )
 
+    fin_planeado = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
+    timezone = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+    )
+
+    upload_until = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
+    available_until = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
     permitir_videos = models.BooleanField(default=False)
     moderacion_activa = models.BooleanField(default=True)
 
@@ -99,6 +125,111 @@ class Evento(models.Model):
             self.slug = slugify(self.nombre)
 
         super().save(*args, **kwargs)
+
+    def permite_carga(self, ahora=None):
+        if self.estado != self.Estado.ACTIVE:
+            return False
+
+        if self.upload_until is None:
+            return True
+
+        if ahora is None:
+            ahora = timezone.now()
+
+        return ahora <= self.upload_until
+
+    def permite_album_publico(self, ahora=None):
+        if self.estado not in {
+            self.Estado.ACTIVE,
+            self.Estado.CLOSED,
+        }:
+            return False
+
+        if self.available_until is None:
+            return True
+
+        if ahora is None:
+            ahora = timezone.now()
+
+        return ahora <= self.available_until
+
+    def materializar_ciclo_temporal(
+        self,
+        fin_planeado,
+        meses_disponibilidad,
+    ):
+        event_timezone = self._validar_fin_planeado(fin_planeado)
+
+        if (
+            not isinstance(meses_disponibilidad, int)
+            or isinstance(meses_disponibilidad, bool)
+            or meses_disponibilidad <= 0
+        ):
+            raise ValidationError(
+                {
+                    "meses_disponibilidad": (
+                        "La duración de disponibilidad debe ser un número "
+                        "entero positivo de meses."
+                    )
+                }
+            )
+
+        fin_local = fin_planeado.astimezone(event_timezone)
+        self._materializar_ventana_carga(fin_planeado)
+        available_until = fin_local + relativedelta(
+            months=meses_disponibilidad
+        )
+
+        if available_until < fin_planeado:
+            raise ValidationError(
+                {
+                    "available_until": (
+                        "No puede ser anterior al fin planeado."
+                    )
+                }
+            )
+
+        self.available_until = available_until
+
+    def materializar_ventana_carga(self, fin_planeado):
+        self._validar_fin_planeado(fin_planeado)
+        self._materializar_ventana_carga(fin_planeado)
+
+    def _validar_fin_planeado(self, fin_planeado):
+        if fin_planeado is None:
+            raise ValidationError(
+                {"fin_planeado": "El fin planeado es obligatorio."}
+            )
+
+        if not timezone.is_aware(fin_planeado):
+            raise ValidationError(
+                {"fin_planeado": "El fin planeado debe incluir zona horaria."}
+            )
+
+        if not self.timezone:
+            raise ValidationError(
+                {"timezone": "La zona horaria del evento es obligatoria."}
+            )
+
+        try:
+            event_timezone = ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValidationError(
+                {"timezone": "La zona horaria del evento no es válida."}
+            ) from exc
+
+        return event_timezone
+
+    def _materializar_ventana_carga(self, fin_planeado):
+        upload_until = fin_planeado + timedelta(hours=48)
+
+        if upload_until <= fin_planeado:
+            raise ValidationError(
+                {"upload_until": "Debe ser posterior al fin planeado."}
+            )
+
+        self.fin_planeado = fin_planeado
+        self.upload_until = upload_until
 
     def __str__(self):
         return self.nombre
@@ -342,4 +473,4 @@ class InvitacionUsuario(models.Model):
     def __str__(self):
         return (
             f"Invitación de {self.usuario.username}"
-        )    
+        )

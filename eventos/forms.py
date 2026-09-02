@@ -1,5 +1,9 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django import forms
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 from .models import Evento
 
@@ -38,6 +42,78 @@ class EventoForm(forms.ModelForm):
                 }
             ),
         }
+
+
+class EventoTemporalForm(forms.ModelForm):
+    fin_planeado = forms.DateTimeField(
+        label="Fin planeado del evento",
+        required=False,
+        widget=forms.DateTimeInput(
+            format="%Y-%m-%dT%H:%M",
+            attrs={"type": "datetime-local"},
+        ),
+    )
+    timezone = forms.CharField(
+        label="Zona horaria",
+        required=True,
+        help_text="Usa una zona IANA, por ejemplo America/Mexico_City.",
+    )
+
+    class Meta:
+        model = Evento
+        fields = ["fin_planeado", "timezone"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        timezone_name = self.instance.timezone or "America/Mexico_City"
+        self.fields["timezone"].initial = timezone_name
+
+        if self.instance.fin_planeado:
+            try:
+                event_timezone = ZoneInfo(timezone_name)
+            except ZoneInfoNotFoundError:
+                event_timezone = timezone.get_current_timezone()
+
+            self.fields["fin_planeado"].initial = timezone.localtime(
+                self.instance.fin_planeado,
+                event_timezone,
+            )
+
+    def clean_timezone(self):
+        timezone_name = self.cleaned_data["timezone"].strip()
+
+        try:
+            ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            raise forms.ValidationError("Ingresa una zona horaria IANA válida.")
+
+        return timezone_name
+
+    def clean(self):
+        cleaned_data = super().clean()
+        fin_planeado = cleaned_data.get("fin_planeado")
+        timezone_name = cleaned_data.get("timezone")
+
+        if self.instance.fin_planeado and fin_planeado is None:
+            self.add_error(
+                "fin_planeado",
+                "El fin planeado no puede vaciarse desde esta configuración.",
+            )
+
+        if fin_planeado and timezone_name:
+            raw_value = self.data.get(self.add_prefix("fin_planeado"))
+
+            try:
+                local_value = datetime.fromisoformat(raw_value)
+            except (TypeError, ValueError):
+                return cleaned_data
+
+            if local_value.tzinfo is None:
+                cleaned_data["fin_planeado"] = local_value.replace(
+                    tzinfo=ZoneInfo(timezone_name)
+                )
+
+        return cleaned_data
 
 class UsuarioForm(forms.ModelForm):
 
