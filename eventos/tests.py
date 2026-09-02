@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection
+from django.db.models import Sum
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -674,6 +675,340 @@ class UploadIntentPresignTests(TestCase):
         generate_url.assert_not_called()
 
 
+class UploadIntentConfirmationTests(TestCase):
+    def setUp(self):
+        self.event = Evento.objects.create(
+            nombre="Evento para confirmar",
+            fecha=date(2026, 9, 2),
+            estado=Evento.Estado.ACTIVE,
+        )
+        self.table = Mesa.objects.create(evento=self.event, numero=1)
+        self.authorize_upload()
+
+    def authorize_upload(self, client=None, table=None):
+        client = client or self.client
+        table = table or self.table
+        session = client.session
+        session["mesa_id"] = table.id
+        session["evento_id"] = table.evento_id
+        session["instrucciones_aceptadas"] = True
+        session.save()
+
+    def create_intent(
+        self,
+        *,
+        event=None,
+        table=None,
+        estado=UploadIntent.Estado.PENDING,
+        tamaño=1024,
+        hash_declarado="a" * 64,
+        expires_at=None,
+    ):
+        event = event or self.event
+        table = table or self.table
+        intent = UploadIntent(
+            evento=event,
+            mesa=table,
+            nombre_original="foto-original.jpg",
+            content_type_declarado="image/jpeg",
+            tamaño_declarado=tamaño,
+            hash_declarado=hash_declarado,
+            estado=estado,
+            expires_at=(
+                expires_at
+                or timezone.now() + timedelta(minutes=5)
+            ),
+        )
+        intent.object_key = (
+            f"eventos/{event.slug}/mesas/{table.token}/"
+            f"upload-intents/{intent.id}.jpg"
+        )
+        intent.save()
+        return intent
+
+    def confirmation_url(self):
+        return reverse(
+            "confirmar_subida",
+            args=[self.event.slug, self.table.token],
+        )
+
+    def confirmation_data(self, intent, **overrides):
+        data = {
+            "upload_intent_id": str(intent.id),
+            "object_key": intent.object_key,
+            "nombre": "nombre-cliente.jpg",
+            "content_type": "image/png",
+            "hash_sha256": "f" * 64,
+            "tamaño": "1",
+        }
+        data.update(overrides)
+        return data
+
+    @patch("eventos.views.get_r2_client")
+    def test_valid_confirmation_creates_photo_and_confirms_intent(self, get_r2):
+        intent = self.create_intent()
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 2048,
+        }
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CONFIRMED)
+        self.assertIsNotNone(intent.foto_id)
+        self.assertIsNotNone(intent.confirmed_at)
+        self.assertEqual(intent.tamaño_real, 2048)
+        self.assertEqual(Foto.objects.count(), 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_confirmation_uses_head_size_and_intent_metadata(self, get_r2):
+        intent = self.create_intent(
+            tamaño=100,
+            hash_declarado="b" * 64,
+        )
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 4096,
+        }
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(
+                intent,
+                nombre="manipulado.png",
+                content_type="image/png",
+                hash_sha256="c" * 64,
+                tamaño="999999",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        foto = Foto.objects.get()
+        self.assertEqual(foto.object_key, intent.object_key)
+        self.assertEqual(foto.nombre_original, intent.nombre_original)
+        self.assertEqual(foto.content_type, intent.content_type_declarado)
+        self.assertEqual(foto.hash_sha256, intent.hash_declarado)
+        self.assertEqual(foto.tamaño, 4096)
+
+    @patch("eventos.views.get_r2_client")
+    def test_oversized_real_object_marks_cleanup_pending(self, get_r2):
+        intent = self.create_intent()
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": MAX_TAMANO_FOTO + 1,
+        }
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CLEANUP_PENDING)
+        self.assertEqual(intent.tamaño_real, MAX_TAMANO_FOTO + 1)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.return_value.delete_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_real_storage_overage_marks_cleanup_pending(self, get_r2):
+        intent = self.create_intent(tamaño=100)
+        Foto.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key="eventos/test/storage-existente.jpg",
+            nombre_original="storage-existente.jpg",
+            content_type="image/jpeg",
+            tamaño=MAX_STORAGE_POR_EVENTO - 500,
+            hash_sha256="d" * 64,
+        )
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 1000,
+        }
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CLEANUP_PENDING)
+        self.assertEqual(Foto.objects.count(), 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_intent_from_other_table_or_event_is_rejected_without_head(self, get_r2):
+        other_table = Mesa.objects.create(evento=self.event, numero=2)
+        other_table_intent = self.create_intent(table=other_table)
+        other_event = Evento.objects.create(
+            nombre="Otro evento",
+            fecha=date(2026, 9, 2),
+            estado=Evento.Estado.ACTIVE,
+        )
+        other_event_table = Mesa.objects.create(evento=other_event, numero=1)
+        other_event_intent = self.create_intent(
+            event=other_event,
+            table=other_event_table,
+            hash_declarado="e" * 64,
+        )
+
+        for intent in (other_table_intent, other_event_intent):
+            with self.subTest(intent=intent.id):
+                response = self.client.post(
+                    self.confirmation_url(),
+                    self.confirmation_data(intent),
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json()["error"],
+                    "Intento de subida no válido.",
+                )
+
+        self.assertFalse(Foto.objects.exists())
+        get_r2.return_value.head_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_cancelled_intent_cannot_be_confirmed(self, get_r2):
+        intent = self.create_intent(estado=UploadIntent.Estado.CANCELLED)
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.return_value.head_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_expired_pending_intent_is_marked_expired(self, get_r2):
+        intent = self.create_intent(
+            expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 410)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.EXPIRED)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.return_value.head_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_repeated_confirmation_is_idempotent(self, get_r2):
+        intent = self.create_intent()
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 2048,
+        }
+
+        first_response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+        second_response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(
+            first_response.json()["foto_id"],
+            second_response.json()["foto_id"],
+        )
+        self.assertEqual(Foto.objects.count(), 1)
+        self.assertEqual(get_r2.return_value.head_object.call_count, 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_confirmed_intent_remains_idempotent_after_event_closes(self, get_r2):
+        intent = self.create_intent()
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 2048,
+        }
+        first_response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+        self.event.estado = Evento.Estado.CLOSED
+        self.event.save(update_fields=["estado"])
+
+        second_response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(
+            first_response.json()["foto_id"],
+            second_response.json()["foto_id"],
+        )
+        self.assertEqual(Foto.objects.count(), 1)
+        self.assertEqual(get_r2.return_value.head_object.call_count, 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_head_failure_keeps_intent_pending_without_photo(self, get_r2):
+        intent = self.create_intent()
+        get_r2.return_value.head_object.side_effect = RuntimeError("R2 no disponible")
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.PENDING)
+        self.assertFalse(Foto.objects.exists())
+
+    @patch("eventos.views.get_r2_client")
+    def test_mismatched_client_object_key_is_rejected(self, get_r2):
+        intent = self.create_intent()
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent, object_key="eventos/ajeno/foto.jpg"),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.return_value.head_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_legacy_d1_photo_is_linked_instead_of_duplicated(self, get_r2):
+        intent = self.create_intent()
+        legacy_photo = Foto.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key=intent.object_key,
+            nombre_original=intent.nombre_original,
+            content_type=intent.content_type_declarado,
+            tamaño=2048,
+            hash_sha256=intent.hash_declarado,
+        )
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 2048,
+        }
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["foto_id"], legacy_photo.id)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CONFIRMED)
+        self.assertEqual(intent.foto_id, legacy_photo.id)
+        self.assertEqual(Foto.objects.count(), 1)
+
+
 class UploadIntentConcurrencyTests(TransactionTestCase):
     def setUp(self):
         self.event = Evento.objects.create(
@@ -745,6 +1080,186 @@ class UploadIntentConcurrencyTests(TransactionTestCase):
             1,
         )
         self.assertEqual(generate_url.call_count, 1)
+
+
+class UploadIntentConfirmationConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.event = Evento.objects.create(
+            nombre="Confirmación concurrente",
+            fecha=date(2026, 9, 2),
+            estado=Evento.Estado.ACTIVE,
+        )
+        self.table = Mesa.objects.create(evento=self.event, numero=1)
+
+    def create_intent(self, suffix, tamaño=1024):
+        intent = UploadIntent(
+            evento=self.event,
+            mesa=self.table,
+            nombre_original=f"foto-{suffix}.jpg",
+            content_type_declarado="image/jpeg",
+            tamaño_declarado=tamaño,
+            hash_declarado=(suffix * 64)[:64],
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+        intent.object_key = (
+            f"eventos/{self.event.slug}/mesas/{self.table.token}/"
+            f"upload-intents/{intent.id}.jpg"
+        )
+        intent.save()
+        return intent
+
+    def authorized_client(self):
+        client = Client()
+        session = client.session
+        session["mesa_id"] = self.table.id
+        session["evento_id"] = self.event.id
+        session["instrucciones_aceptadas"] = True
+        session.save()
+        return client
+
+    def confirmation_url(self):
+        return reverse(
+            "confirmar_subida",
+            args=[self.event.slug, self.table.token],
+        )
+
+    def concurrent_confirmations(self, intents):
+        barrier = Barrier(len(intents))
+        clients = [self.authorized_client() for _intent in intents]
+        url = self.confirmation_url()
+
+        def confirm(index):
+            close_old_connections()
+            try:
+                intent = intents[index]
+                barrier.wait(timeout=10)
+                response = clients[index].post(
+                    url,
+                    {
+                        "upload_intent_id": str(intent.id),
+                        "object_key": intent.object_key,
+                    },
+                )
+                return response.status_code, response.json()
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=len(intents)) as executor:
+            return list(executor.map(confirm, range(len(intents))))
+
+    @patch("eventos.views.get_r2_client")
+    def test_two_confirmations_of_same_intent_create_one_photo(self, get_r2):
+        if connection.vendor != "postgresql":
+            self.skipTest("La prueba requiere select_for_update de PostgreSQL.")
+
+        intent = self.create_intent("a")
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 1024,
+        }
+
+        responses = self.concurrent_confirmations([intent, intent])
+
+        self.assertEqual([status for status, _payload in responses], [200, 200])
+        self.assertEqual(Foto.objects.count(), 1)
+        self.assertEqual(
+            responses[0][1]["foto_id"],
+            responses[1][1]["foto_id"],
+        )
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.CONFIRMED)
+
+    @patch("eventos.views.get_r2_client")
+    def test_two_intents_near_photo_limit_never_exceed_limit(self, get_r2):
+        if connection.vendor != "postgresql":
+            self.skipTest("La prueba requiere select_for_update de PostgreSQL.")
+
+        Foto.objects.bulk_create(
+            [
+                Foto(
+                    evento=self.event,
+                    mesa=self.table,
+                    object_key=f"eventos/test/foto-limite-{index}.jpg",
+                    nombre_original=f"foto-limite-{index}.jpg",
+                    content_type="image/jpeg",
+                    tamaño=1,
+                    hash_sha256=f"{index:064x}",
+                )
+                for index in range(MAX_FOTOS_POR_EVENTO - 1)
+            ]
+        )
+        intents = [self.create_intent("a"), self.create_intent("b")]
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 1,
+        }
+
+        responses = self.concurrent_confirmations(intents)
+
+        self.assertCountEqual(
+            [status for status, _payload in responses],
+            [200, 400],
+        )
+        self.assertEqual(Foto.objects.count(), MAX_FOTOS_POR_EVENTO)
+        self.assertLessEqual(Foto.objects.count(), MAX_FOTOS_POR_EVENTO)
+        self.assertEqual(
+            UploadIntent.objects.filter(
+                estado=UploadIntent.Estado.CONFIRMED,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            UploadIntent.objects.filter(
+                estado=UploadIntent.Estado.CLEANUP_PENDING,
+            ).count(),
+            1,
+        )
+
+    @patch("eventos.views.get_r2_client")
+    def test_concurrent_real_sizes_never_exceed_storage_limit(self, get_r2):
+        if connection.vendor != "postgresql":
+            self.skipTest("La prueba requiere select_for_update de PostgreSQL.")
+
+        Foto.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key="eventos/test/storage-concurrente.jpg",
+            nombre_original="storage-concurrente.jpg",
+            content_type="image/jpeg",
+            tamaño=MAX_STORAGE_POR_EVENTO - 1500,
+            hash_sha256="f" * 64,
+        )
+        intents = [
+            self.create_intent("a", tamaño=500),
+            self.create_intent("b", tamaño=500),
+        ]
+        get_r2.return_value.head_object.return_value = {
+            "ContentLength": 1000,
+        }
+
+        responses = self.concurrent_confirmations(intents)
+        almacenamiento = (
+            Foto.objects
+            .filter(eliminada_at__isnull=True)
+            .aggregate(total=Sum("tamaño"))["total"]
+            or 0
+        )
+
+        self.assertCountEqual(
+            [status for status, _payload in responses],
+            [200, 400],
+        )
+        self.assertLessEqual(almacenamiento, MAX_STORAGE_POR_EVENTO)
+        self.assertEqual(
+            UploadIntent.objects.filter(
+                estado=UploadIntent.Estado.CONFIRMED,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            UploadIntent.objects.filter(
+                estado=UploadIntent.Estado.CLEANUP_PENDING,
+            ).count(),
+            1,
+        )
 
 
 class EventTemporalMaterializationTests(TestCase):

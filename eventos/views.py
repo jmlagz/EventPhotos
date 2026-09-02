@@ -678,8 +678,10 @@ def confirmar_subida(request, slug, token):
         ],
     )
 
-    # Los eventos cerrados ya no aceptan nuevas fotos.
-    if not evento.permite_carga():
+    upload_intent_id = request.POST.get("upload_intent_id", "").strip()
+
+    # Conserva el rechazo temprano del flujo legacy sin UploadIntent.
+    if not upload_intent_id and not evento.permite_carga():
         error = (
             "Este evento ya está cerrado y no acepta nuevas fotos."
             if evento.estado == Evento.Estado.CLOSED
@@ -710,55 +712,130 @@ def confirmar_subida(request, slug, token):
             status=403,
         )
 
-    object_key = request.POST.get("object_key", "").strip()
-    nombre = request.POST.get("nombre", "").strip()
-    content_type = request.POST.get("content_type", "").strip()
-    hash_sha256 = request.POST.get("hash_sha256", "").strip()
-
-    if not all([
-        object_key,
-        nombre,
-        content_type,
-        hash_sha256,
-    ]):
+    if not upload_intent_id:
         return JsonResponse(
-            {"error": "Faltan datos para registrar la foto."},
+            {"error": "Falta identificar la subida."},
             status=400,
         )
 
-    # El object_key debe pertenecer a este evento y esta mesa.
-    prefijo_esperado = (
-        f"eventos/{evento.slug}/"
-        f"mesas/{mesa.token}/"
+    try:
+        upload_intent_id = uuid.UUID(upload_intent_id)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Intento de subida no válido."},
+            status=400,
+        )
+
+    upload_intent = (
+        UploadIntent.objects
+        .select_related("foto")
+        .filter(
+            pk=upload_intent_id,
+            evento=evento,
+            mesa=mesa,
+        )
+        .first()
     )
 
-    if not object_key.startswith(prefijo_esperado):
+    if upload_intent is None:
         return JsonResponse(
-            {"error": "Objeto de almacenamiento no válido."},
+            {"error": "Intento de subida no válido."},
             status=400,
         )
 
-    # Segunda comprobación contra duplicados.
-    foto_existente = Foto.objects.filter(
-        evento=evento,
-        hash_sha256=hash_sha256,
-    ).first()
+    object_key_enviada = request.POST.get("object_key", "").strip()
 
-    if foto_existente:
+    if object_key_enviada and object_key_enviada != upload_intent.object_key:
+        return JsonResponse(
+            {"error": "Intento de subida no válido."},
+            status=400,
+        )
+
+    if (
+        upload_intent.estado == UploadIntent.Estado.CONFIRMED
+        and upload_intent.foto_id is not None
+    ):
         return JsonResponse(
             {
-                "duplicada": True,
-                "mensaje": "Esta foto ya fue compartida en este evento.",
+                "ok": True,
+                "foto_id": upload_intent.foto_id,
+                "mensaje": "Foto registrada correctamente.",
             }
         )
 
-    # Consultamos R2 para obtener el tamaño REAL del archivo.
+    # Los eventos cerrados ya no aceptan nuevas fotos. Un intent ya
+    # confirmado se resolvió antes para conservar la idempotencia.
+    if not evento.permite_carga():
+        error = (
+            "Este evento ya está cerrado y no acepta nuevas fotos."
+            if evento.estado == Evento.Estado.CLOSED
+            else "Este evento no acepta nuevas fotos."
+        )
+
+        return JsonResponse(
+            {"error": error},
+            status=403,
+        )
+
+    if upload_intent.estado != UploadIntent.Estado.PENDING:
+        return JsonResponse(
+            {"error": "La subida no puede confirmarse."},
+            status=409,
+        )
+
+    if upload_intent.expires_at <= timezone.now():
+        with transaction.atomic():
+            evento_bloqueado = Evento.objects.select_for_update().get(
+                pk=evento.pk
+            )
+            intent_vencido = (
+                UploadIntent.objects
+                .select_for_update()
+                .get(
+                    pk=upload_intent.pk,
+                    evento=evento_bloqueado,
+                    mesa=mesa,
+                )
+            )
+            ahora = timezone.now()
+
+            if (
+                intent_vencido.estado == UploadIntent.Estado.CONFIRMED
+                and intent_vencido.foto_id is not None
+            ):
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "foto_id": intent_vencido.foto_id,
+                        "mensaje": "Foto registrada correctamente.",
+                    }
+                )
+
+            if (
+                intent_vencido.estado == UploadIntent.Estado.PENDING
+                and intent_vencido.expires_at <= ahora
+            ):
+                intent_vencido.estado = UploadIntent.Estado.EXPIRED
+                intent_vencido.save(update_fields=["estado"])
+
+                return JsonResponse(
+                    {"error": "El intento de subida ha expirado."},
+                    status=410,
+                )
+
+            if intent_vencido.estado != UploadIntent.Estado.PENDING:
+                return JsonResponse(
+                    {"error": "La subida no puede confirmarse."},
+                    status=409,
+                )
+
+    # La llamada de red ocurre antes de adquirir locks de base de datos.
     try:
         r2 = get_r2_client()
 
         objeto = r2.head_object(
             Bucket=settings.R2_BUCKET_NAME,
-            Key=object_key,
+            Key=upload_intent.object_key,
         )
 
         tamaño_real = objeto["ContentLength"]
@@ -774,98 +851,222 @@ def confirmar_subida(request, slug, token):
             status=400,
         )
 
-    # Verificamos nuevamente el tamaño máximo individual.
-    if tamaño_real > MAX_TAMANO_FOTO:
-        try:
-            r2.delete_object(
-                Bucket=settings.R2_BUCKET_NAME,
-                Key=object_key,
-            )
-        except Exception:
-            pass
-
-        return JsonResponse(
-            {
-                "error": (
-                    "La foto supera el tamaño máximo "
-                    "permitido de 15 MB."
-                )
-            },
-            status=400,
-        )
-
-    # Contamos las fotos activas actuales.
-    fotos_actuales = Foto.objects.filter(
-        evento=evento,
-        eliminada_at__isnull=True,
-    ).count()
-
-    if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
-        try:
-            r2.delete_object(
-                Bucket=settings.R2_BUCKET_NAME,
-                Key=object_key,
-            )
-        except Exception:
-            pass
-
-        return JsonResponse(
-            {
-                "error": (
-                    "Este evento ha alcanzado el límite "
-                    "de 450 fotos."
-                )
-            },
-            status=400,
-        )
-
-    # Calculamos el almacenamiento real actualmente utilizado.
-    almacenamiento_actual = (
-        Foto.objects
-        .filter(
-            evento=evento,
-            eliminada_at__isnull=True,
-        )
-        .aggregate(total=Sum("tamaño"))
-        .get("total")
-        or 0
-    )
-
-    if (
-        almacenamiento_actual + tamaño_real
-        > MAX_STORAGE_POR_EVENTO
-    ):
-        try:
-            r2.delete_object(
-                Bucket=settings.R2_BUCKET_NAME,
-                Key=object_key,
-            )
-        except Exception:
-            pass
-
-        return JsonResponse(
-            {
-                "error": (
-                    "Este evento ha alcanzado su límite "
-                    "de almacenamiento."
-                )
-            },
-            status=400,
-        )
-
     uploader_hash = obtener_uploader_hash(request)
 
-    foto = Foto.objects.create(
-        evento=evento,
-        mesa=mesa,
-        object_key=object_key,
-        nombre_original=nombre,
-        content_type=content_type,
-        tamaño=tamaño_real,
-        hash_sha256=hash_sha256,
-        uploader_hash=uploader_hash,
-        estado=Foto.Estado.APROBADA,
-    )
+    with transaction.atomic():
+        evento_bloqueado = Evento.objects.select_for_update().get(
+            pk=evento.pk
+        )
+        intent_bloqueado = (
+            UploadIntent.objects
+            .select_for_update()
+            .get(
+                pk=upload_intent.pk,
+                evento=evento_bloqueado,
+                mesa=mesa,
+            )
+        )
+        ahora = timezone.now()
+
+        if (
+            intent_bloqueado.estado == UploadIntent.Estado.CONFIRMED
+            and intent_bloqueado.foto_id is not None
+        ):
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "foto_id": intent_bloqueado.foto_id,
+                    "mensaje": "Foto registrada correctamente.",
+                }
+            )
+
+        if intent_bloqueado.estado != UploadIntent.Estado.PENDING:
+            return JsonResponse(
+                {"error": "La subida no puede confirmarse."},
+                status=409,
+            )
+
+        if intent_bloqueado.expires_at <= ahora:
+            intent_bloqueado.estado = UploadIntent.Estado.EXPIRED
+            intent_bloqueado.save(update_fields=["estado"])
+
+            return JsonResponse(
+                {"error": "El intento de subida ha expirado."},
+                status=410,
+            )
+
+        if not evento_bloqueado.permite_carga(ahora):
+            intent_bloqueado.estado = UploadIntent.Estado.CLEANUP_PENDING
+            intent_bloqueado.tamaño_real = tamaño_real
+            intent_bloqueado.save(
+                update_fields=["estado", "tamaño_real"]
+            )
+
+            error = (
+                "Este evento ya está cerrado y no acepta nuevas fotos."
+                if evento_bloqueado.estado == Evento.Estado.CLOSED
+                else "Este evento no acepta nuevas fotos."
+            )
+
+            return JsonResponse({"error": error}, status=403)
+
+        foto_legacy = Foto.objects.filter(
+            evento=evento_bloqueado,
+            mesa=mesa,
+            object_key=intent_bloqueado.object_key,
+            eliminada_at__isnull=True,
+        ).first()
+
+        if foto_legacy is not None:
+            intent_bloqueado.foto = foto_legacy
+            intent_bloqueado.tamaño_real = foto_legacy.tamaño
+            intent_bloqueado.confirmed_at = ahora
+            intent_bloqueado.estado = UploadIntent.Estado.CONFIRMED
+            intent_bloqueado.save(
+                update_fields=[
+                    "foto",
+                    "tamaño_real",
+                    "confirmed_at",
+                    "estado",
+                ]
+            )
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "foto_id": foto_legacy.id,
+                    "mensaje": "Foto registrada correctamente.",
+                }
+            )
+
+        if tamaño_real > MAX_TAMANO_FOTO:
+            intent_bloqueado.estado = UploadIntent.Estado.CLEANUP_PENDING
+            intent_bloqueado.tamaño_real = tamaño_real
+            intent_bloqueado.save(
+                update_fields=["estado", "tamaño_real"]
+            )
+
+            return JsonResponse(
+                {
+                    "error": (
+                        "La foto supera el tamaño máximo "
+                        "permitido de 15 MB."
+                    )
+                },
+                status=400,
+            )
+
+        fotos = Foto.objects.filter(
+            evento=evento_bloqueado,
+            eliminada_at__isnull=True,
+        ).aggregate(
+            cantidad=Count("id"),
+            almacenamiento=Sum("tamaño"),
+        )
+        otras_reservas = UploadIntent.objects.filter(
+            evento=evento_bloqueado,
+            estado=UploadIntent.Estado.PENDING,
+            expires_at__gt=ahora,
+        ).exclude(pk=intent_bloqueado.pk).aggregate(
+            cantidad=Count("id"),
+            almacenamiento=Sum("tamaño_declarado"),
+        )
+
+        fotos_actuales = fotos["cantidad"] or 0
+        almacenamiento_actual = fotos["almacenamiento"] or 0
+        reservas_actuales = otras_reservas["cantidad"] or 0
+        almacenamiento_reservado = (
+            otras_reservas["almacenamiento"] or 0
+        )
+
+        if (
+            fotos_actuales
+            + reservas_actuales
+            + 1
+            > MAX_FOTOS_POR_EVENTO
+        ):
+            intent_bloqueado.estado = UploadIntent.Estado.CLEANUP_PENDING
+            intent_bloqueado.tamaño_real = tamaño_real
+            intent_bloqueado.save(
+                update_fields=["estado", "tamaño_real"]
+            )
+
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado el límite "
+                        "de 450 fotos."
+                    )
+                },
+                status=400,
+            )
+
+        if (
+            almacenamiento_actual
+            + almacenamiento_reservado
+            + tamaño_real
+            > MAX_STORAGE_POR_EVENTO
+        ):
+            intent_bloqueado.estado = UploadIntent.Estado.CLEANUP_PENDING
+            intent_bloqueado.tamaño_real = tamaño_real
+            intent_bloqueado.save(
+                update_fields=["estado", "tamaño_real"]
+            )
+
+            return JsonResponse(
+                {
+                    "error": (
+                        "Este evento ha alcanzado su límite "
+                        "de almacenamiento."
+                    )
+                },
+                status=400,
+            )
+
+        foto_existente = Foto.objects.filter(
+            evento=evento_bloqueado,
+            hash_sha256=intent_bloqueado.hash_declarado,
+        ).first()
+
+        if foto_existente is not None:
+            intent_bloqueado.estado = UploadIntent.Estado.CLEANUP_PENDING
+            intent_bloqueado.tamaño_real = tamaño_real
+            intent_bloqueado.save(
+                update_fields=["estado", "tamaño_real"]
+            )
+
+            return JsonResponse(
+                {
+                    "duplicada": True,
+                    "foto_id": foto_existente.id,
+                    "mensaje": "Esta foto ya fue compartida en este evento.",
+                }
+            )
+
+        foto = Foto.objects.create(
+            evento=evento_bloqueado,
+            mesa=intent_bloqueado.mesa,
+            object_key=intent_bloqueado.object_key,
+            nombre_original=intent_bloqueado.nombre_original,
+            content_type=intent_bloqueado.content_type_declarado,
+            tamaño=tamaño_real,
+            hash_sha256=intent_bloqueado.hash_declarado,
+            uploader_hash=uploader_hash,
+            estado=Foto.Estado.APROBADA,
+        )
+
+        intent_bloqueado.foto = foto
+        intent_bloqueado.tamaño_real = tamaño_real
+        intent_bloqueado.confirmed_at = ahora
+        intent_bloqueado.estado = UploadIntent.Estado.CONFIRMED
+        intent_bloqueado.save(
+            update_fields=[
+                "foto",
+                "tamaño_real",
+                "confirmed_at",
+                "estado",
+            ]
+        )
 
     return JsonResponse(
         {
