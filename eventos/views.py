@@ -479,75 +479,75 @@ def solicitar_url_subida(request, slug, token):
             status=400,
         )
 
-        # Verificamos el tamaño informado por el navegador
-        # como primera barrera. La validación definitiva
-        # se hará contra R2 al confirmar la subida.
-        tamaño = request.POST.get("tamaño", "").strip()
+    # Verificamos el tamaño informado por el navegador
+    # como primera barrera. La validación definitiva
+    # se hará contra R2 al confirmar la subida.
+    tamaño = request.POST.get("tamaño", "").strip()
 
-        try:
-            tamaño = int(tamaño)
-        except (TypeError, ValueError):
-            return JsonResponse(
-                {"error": "Tamaño de archivo inválido."},
-                status=400,
-            )
-
-        if tamaño <= 0:
-            return JsonResponse(
-                {"error": "El tamaño de la foto no es válido."},
-                status=400,
-            )
-
-        if tamaño > MAX_TAMANO_FOTO:
-            return JsonResponse(
-                {
-                    "error": (
-                        "La foto supera el tamaño máximo permitido "
-                        "de 15 MB."
-                    )
-                },
-                status=400,
-            )
-
-        # Contamos únicamente las fotos que siguen activas.
-        fotos_actuales = Foto.objects.filter(
-            evento=evento,
-            eliminada_at__isnull=True,
-        ).count()
-
-        if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
-            return JsonResponse(
-                {
-                    "error": (
-                        "Este evento ha alcanzado el límite "
-                        "de 450 fotos."
-                    )
-                },
-                status=400,
-            )
-
-        # Calculamos el almacenamiento actualmente utilizado.
-        almacenamiento_actual = (
-            Foto.objects
-            .filter(
-                evento=evento,
-                eliminada_at__isnull=True,
-            )
-            .aggregate(total=Sum("tamaño"))
-            .get("total")
-            or 0
+    try:
+        tamaño = int(tamaño)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Tamaño de archivo inválido."},
+            status=400,
         )
 
-        if almacenamiento_actual + tamaño > MAX_STORAGE_POR_EVENTO:
-            return JsonResponse(
-                {
-                    "error": (
-                        "Este evento ha alcanzado su límite "
-                        "de almacenamiento."
-                    )
-                },
-                status=400,
-            )
+    if tamaño <= 0:
+        return JsonResponse(
+            {"error": "El tamaño de la foto no es válido."},
+            status=400,
+        )
+
+    if tamaño > MAX_TAMANO_FOTO:
+        return JsonResponse(
+            {
+                "error": (
+                    "La foto supera el tamaño máximo permitido "
+                    "de 15 MB."
+                )
+            },
+            status=400,
+        )
+
+    # Contamos únicamente las fotos que siguen activas.
+    fotos_actuales = Foto.objects.filter(
+        evento=evento,
+        eliminada_at__isnull=True,
+    ).count()
+
+    if fotos_actuales >= MAX_FOTOS_POR_EVENTO:
+        return JsonResponse(
+            {
+                "error": (
+                    "Este evento ha alcanzado el límite "
+                    "de 450 fotos."
+                )
+            },
+            status=400,
+        )
+
+    # Calculamos el almacenamiento actualmente utilizado.
+    almacenamiento_actual = (
+        Foto.objects
+        .filter(
+            evento=evento,
+            eliminada_at__isnull=True,
+        )
+        .aggregate(total=Sum("tamaño"))
+        .get("total")
+        or 0
+    )
+
+    if almacenamiento_actual + tamaño > MAX_STORAGE_POR_EVENTO:
+        return JsonResponse(
+            {
+                "error": (
+                    "Este evento ha alcanzado su límite "
+                    "de almacenamiento."
+                )
+            },
+            status=400,
+        )
 
     if len(hash_sha256) != 64:
         return JsonResponse(

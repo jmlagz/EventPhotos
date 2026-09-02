@@ -10,6 +10,11 @@ from django.urls import reverse
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 
+from .limites import (
+    MAX_FOTOS_POR_EVENTO,
+    MAX_STORAGE_POR_EVENTO,
+    MAX_TAMANO_FOTO,
+)
 from .models import Evento, Foto, Mesa
 
 
@@ -126,6 +131,116 @@ class EventTemporalPolicyTests(TestCase):
         response = self.client.post(self.upload_url(event, table), self.upload_request_data())
 
         self.assertEqual(response.status_code, 200)
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_valid_size_allows_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+
+        response = self.client.post(
+            self.upload_url(event, table),
+            self.upload_request_data(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        generate_url.assert_called_once()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_missing_or_invalid_size_rejects_before_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+
+        for tamaño in ("", "invalido"):
+            with self.subTest(tamaño=tamaño):
+                data = self.upload_request_data()
+                data["tamaño"] = tamaño
+
+                response = self.client.post(self.upload_url(event, table), data)
+
+                self.assertEqual(response.status_code, 400)
+                generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_zero_or_negative_size_rejects_before_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+
+        for tamaño in ("0", "-1"):
+            with self.subTest(tamaño=tamaño):
+                data = self.upload_request_data()
+                data["tamaño"] = tamaño
+
+                response = self.client.post(self.upload_url(event, table), data)
+
+                self.assertEqual(response.status_code, 400)
+                generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_oversized_photo_rejects_before_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+        data = self.upload_request_data()
+        data["tamaño"] = str(MAX_TAMANO_FOTO + 1)
+
+        response = self.client.post(self.upload_url(event, table), data)
+
+        self.assertEqual(response.status_code, 400)
+        generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_event_at_photo_limit_rejects_before_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+        Foto.objects.bulk_create(
+            [
+                Foto(
+                    evento=event,
+                    mesa=table,
+                    object_key=f"eventos/test/{index}.jpg",
+                    nombre_original=f"{index}.jpg",
+                    content_type="image/jpeg",
+                    tamaño=1,
+                    hash_sha256=f"{index:064x}",
+                )
+                for index in range(MAX_FOTOS_POR_EVENTO)
+            ]
+        )
+
+        response = self.client.post(
+            self.upload_url(event, table),
+            self.upload_request_data(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        generate_url.assert_not_called()
+
+    @patch("eventos.views.generar_url_subida")
+    def test_storage_limit_rejects_before_presign(self, generate_url):
+        event = self.create_event()
+        table = self.create_table(event)
+        self.authorize_public_upload(table)
+        Foto.objects.create(
+            evento=event,
+            mesa=table,
+            object_key="eventos/test/ocupada.jpg",
+            nombre_original="ocupada.jpg",
+            content_type="image/jpeg",
+            tamaño=MAX_STORAGE_POR_EVENTO,
+            hash_sha256="f" * 64,
+        )
+
+        response = self.client.post(
+            self.upload_url(event, table),
+            self.upload_request_data(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        generate_url.assert_not_called()
 
     def test_active_event_with_expired_upload_until_blocks_upload_pages(self):
         event = self.create_event(upload_until=timezone.now() - timedelta(seconds=1))
