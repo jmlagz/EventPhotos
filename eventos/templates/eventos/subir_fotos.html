@@ -686,14 +686,18 @@ button,
                     mensaje.textContent =
                         `Subiendo foto ${i + 1} de ${fotosSeleccionadas.length}...`;
 
+                    const headersSubida =
+                        resultado.headers || {
+                            "Content-Type": foto.type,
+                            "If-None-Match": "*",
+                        };
+
                     const subida = await fetch(
                         resultado.url,
                         {
                             method: "PUT",
 
-                            headers: {
-                                "Content-Type": foto.type,
-                            },
+                            headers: headersSubida,
 
                             body: foto,
                         }

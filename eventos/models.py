@@ -381,6 +381,7 @@ class UploadIntent(models.Model):
 
     class Estado(models.TextChoices):
         PENDING = "pending", "Pendiente"
+        FINALIZING = "finalizing", "Materializando"
         CONFIRMED = "confirmed", "Confirmada"
         CANCELLED = "cancelled", "Cancelada"
         EXPIRED = "expired", "Expirada"
@@ -409,6 +410,13 @@ class UploadIntent(models.Model):
         unique=True,
     )
 
+    final_object_key = models.CharField(
+        max_length=500,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+
     nombre_original = models.CharField(max_length=255)
     content_type_declarado = models.CharField(max_length=100)
     tamaño_declarado = models.PositiveBigIntegerField()
@@ -424,6 +432,8 @@ class UploadIntent(models.Model):
     expires_at = models.DateTimeField()
     confirmed_at = models.DateTimeField(null=True, blank=True)
     tamaño_real = models.PositiveBigIntegerField(null=True, blank=True)
+    source_etag = models.CharField(max_length=128, null=True, blank=True)
+    finalizing_at = models.DateTimeField(null=True, blank=True)
 
     foto = models.OneToOneField(
         Foto,

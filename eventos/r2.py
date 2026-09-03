@@ -24,6 +24,7 @@ def generar_url_subida(object_key, content_type):
             "Bucket": settings.R2_BUCKET_NAME,
             "Key": object_key,
             "ContentType": content_type,
+            "IfNoneMatch": "*",
         },
         ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
     )
