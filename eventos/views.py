@@ -772,6 +772,7 @@ def solicitar_url_subida(request, slug, token):
         url = generar_url_subida(
             object_key=object_key,
             content_type=content_type,
+            content_length=upload_intent.tamaño_declarado,
         )
     except Exception:
         with transaction.atomic():

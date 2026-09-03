@@ -15,17 +15,21 @@ def get_r2_client():
     )
 
 
-def generar_url_subida(object_key, content_type):
+def generar_url_subida(object_key, content_type, content_length=None):
     r2 = get_r2_client()
+
+    params = {
+        "Bucket": settings.R2_BUCKET_NAME,
+        "Key": object_key,
+        "ContentType": content_type,
+        "IfNoneMatch": "*",
+    }
+    if content_length is not None:
+        params["ContentLength"] = content_length
 
     return r2.generate_presigned_url(
         "put_object",
-        Params={
-            "Bucket": settings.R2_BUCKET_NAME,
-            "Key": object_key,
-            "ContentType": content_type,
-            "IfNoneMatch": "*",
-        },
+        Params=params,
         ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
     )
 

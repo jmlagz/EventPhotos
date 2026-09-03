@@ -119,7 +119,7 @@ class FakeR2Client:
 
 class R2ConditionalPresignTests(TestCase):
     @patch("eventos.r2.get_r2_client")
-    def test_presign_requires_content_type_and_if_none_match(self, get_r2):
+    def test_presign_signs_content_length_type_and_if_none_match(self, get_r2):
         get_r2.return_value.generate_presigned_url.return_value = (
             "https://upload.test/"
         )
@@ -127,6 +127,7 @@ class R2ConditionalPresignTests(TestCase):
         result = generar_url_subida(
             "eventos/test/upload-intents/id.jpg",
             "image/jpeg",
+            content_length=1024,
         )
 
         self.assertEqual(result, "https://upload.test/")
@@ -136,6 +137,22 @@ class R2ConditionalPresignTests(TestCase):
                 "Bucket": settings.R2_BUCKET_NAME,
                 "Key": "eventos/test/upload-intents/id.jpg",
                 "ContentType": "image/jpeg",
+                "IfNoneMatch": "*",
+                "ContentLength": 1024,
+            },
+            ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
+        )
+
+    @patch("eventos.r2.get_r2_client")
+    def test_presign_without_length_preserves_personalization_caller(self, get_r2):
+        generar_url_subida("eventos/test/personalizacion/logo/image.png", "image/png")
+
+        get_r2.return_value.generate_presigned_url.assert_called_once_with(
+            "put_object",
+            Params={
+                "Bucket": settings.R2_BUCKET_NAME,
+                "Key": "eventos/test/personalizacion/logo/image.png",
+                "ContentType": "image/png",
                 "IfNoneMatch": "*",
             },
             ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
@@ -615,6 +632,7 @@ class UploadIntentPresignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         intent = UploadIntent.objects.get()
         payload = response.json()
+        self.assertEqual(payload["url"], "https://upload.test/")
         self.assertEqual(payload["upload_intent_id"], str(intent.id))
         self.assertEqual(payload["object_key"], intent.object_key)
         self.assertEqual(
@@ -649,6 +667,30 @@ class UploadIntentPresignTests(TestCase):
         generate_url.assert_called_once_with(
             object_key=intent.object_key,
             content_type="image/jpeg",
+            content_length=intent.tamaño_declarado,
+        )
+
+    @patch("eventos.r2.get_r2_client")
+    def test_presign_propagates_reserved_size_to_boto3(self, get_r2):
+        get_r2.return_value.generate_presigned_url.return_value = "https://upload.test/"
+        data = self.upload_data()
+        data["tamaño"] = "2048"
+
+        response = self.client.post(self.upload_url(), data)
+
+        self.assertEqual(response.status_code, 200)
+        intent = UploadIntent.objects.get()
+        self.assertEqual(intent.tamaño_declarado, 2048)
+        get_r2.return_value.generate_presigned_url.assert_called_once_with(
+            "put_object",
+            Params={
+                "Bucket": settings.R2_BUCKET_NAME,
+                "Key": intent.object_key,
+                "ContentLength": intent.tamaño_declarado,
+                "ContentType": intent.content_type_declarado,
+                "IfNoneMatch": "*",
+            },
+            ExpiresIn=UPLOAD_URL_EXPIRATION_SECONDS,
         )
 
     @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
@@ -675,6 +717,7 @@ class UploadIntentPresignTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '"If-None-Match": "*"')
+        self.assertNotContains(response, "Content-Length")
 
     @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
     def test_each_presign_uses_a_unique_intent_object_key(self, _generate_url):
@@ -812,7 +855,11 @@ class UploadIntentPresignTests(TestCase):
         self.assertEqual(response.status_code, 500)
         intent = UploadIntent.objects.get()
         self.assertEqual(intent.estado, UploadIntent.Estado.CANCELLED)
-        generate_url.assert_called_once()
+        generate_url.assert_called_once_with(
+            object_key=intent.object_key,
+            content_type=intent.content_type_declarado,
+            content_length=intent.tamaño_declarado,
+        )
 
     @patch("eventos.views.generar_url_subida")
     def test_closed_or_expired_event_blocks_before_reserving(self, generate_url):
@@ -1256,6 +1303,11 @@ class UploadIntentConfirmationTests(TestCase):
         self.assertEqual(intent.estado, UploadIntent.Estado.CLEANUP_PENDING)
         self.assertEqual(intent.tamaño_real, MAX_TAMANO_FOTO + 1)
         self.assertFalse(Foto.objects.exists())
+        r2.head_object.assert_any_call(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=intent.object_key,
+        )
+        r2.copy_object.assert_not_called()
         r2.delete_object.assert_not_called()
 
     @patch("eventos.views.get_r2_client")
