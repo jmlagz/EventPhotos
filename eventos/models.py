@@ -434,6 +434,7 @@ class UploadIntent(models.Model):
     tamaño_real = models.PositiveBigIntegerField(null=True, blank=True)
     source_etag = models.CharField(max_length=128, null=True, blank=True)
     finalizing_at = models.DateTimeField(null=True, blank=True)
+    cleaned_at = models.DateTimeField(null=True, blank=True)
 
     foto = models.OneToOneField(
         Foto,

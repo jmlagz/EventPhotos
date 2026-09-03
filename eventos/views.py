@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 
 
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
@@ -123,10 +123,15 @@ def _reservas_upload(
             almacenamiento=Sum("tamaño_declarado"),
         )
     materializados = intents.filter(
-        estado__in=[
-            UploadIntent.Estado.FINALIZING,
-            UploadIntent.Estado.CLEANUP_PENDING,
-        ],
+        Q(estado=UploadIntent.Estado.FINALIZING)
+        | Q(
+            estado=UploadIntent.Estado.CLEANUP_PENDING,
+            cleaned_at__isnull=True,
+        )
+        | Q(
+            estado=UploadIntent.Estado.CLEANUP_PENDING,
+            finalizing_at__isnull=False,
+        )
     ).aggregate(
         cantidad=Count("id"),
         almacenamiento_real=Sum("tamaño_real"),
@@ -149,10 +154,15 @@ def _reservas_upload(
     almacenamiento = almacenamiento_pending
 
     for intent in intents.filter(
-        estado__in=[
-            UploadIntent.Estado.FINALIZING,
-            UploadIntent.Estado.CLEANUP_PENDING,
-        ],
+        Q(estado=UploadIntent.Estado.FINALIZING)
+        | Q(
+            estado=UploadIntent.Estado.CLEANUP_PENDING,
+            cleaned_at__isnull=True,
+        )
+        | Q(
+            estado=UploadIntent.Estado.CLEANUP_PENDING,
+            finalizing_at__isnull=False,
+        )
     ).only("tamaño_real", "tamaño_declarado"):
         almacenamiento += (
             intent.tamaño_real
