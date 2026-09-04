@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Evento, UploadIntent
+from .models import Evento, Foto, UploadIntent
 from .r2 import get_r2_client
 
 
@@ -61,6 +61,13 @@ def temporary_key_is_safe(upload_intent):
         upload_intent.foto_id is not None
         and object_key == upload_intent.foto.object_key
     ):
+        return False
+
+    # Una Foto legacy puede usar el temporal sin estar asociada al intent.
+    if Foto.objects.filter(
+        object_key=object_key,
+        eliminada_at__isnull=True,
+    ).exists():
         return False
 
     return True

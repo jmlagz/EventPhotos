@@ -78,6 +78,144 @@ class UploadIntentCleanupTests(TestCase):
         call_command("cleanup_upload_intents", *args, stdout=output)
         return output.getvalue()
 
+    def create_referencing_photo(self, intent, **overrides):
+        fields = {
+            "evento": self.event,
+            "mesa": self.table,
+            "object_key": intent.object_key,
+            "nombre_original": "historica.jpg",
+            "content_type": "image/jpeg",
+            "tamaño": 100,
+            "hash_sha256": intent.id.hex * 2,
+        }
+        fields.update(overrides)
+        return Foto.objects.create(**fields)
+
+    def test_unlinked_photo_protects_temporary_key_in_all_cleanup_states(self):
+        for estado in (
+            UploadIntent.Estado.PENDING,
+            UploadIntent.Estado.EXPIRED,
+            UploadIntent.Estado.CANCELLED,
+            UploadIntent.Estado.CLEANUP_PENDING,
+            UploadIntent.Estado.CONFIRMED,
+        ):
+            with self.subTest(estado=estado):
+                intent = self.create_intent(estado=estado)
+                historical_photo = self.create_referencing_photo(intent)
+                if estado == UploadIntent.Estado.CONFIRMED:
+                    intent.final_object_key = (
+                        f"eventos/{self.event.slug}/fotos/{intent.id}.jpg"
+                    )
+                    intent.foto = self.create_referencing_photo(
+                        intent,
+                        object_key=intent.final_object_key,
+                        hash_sha256="f" * 64,
+                    )
+                    intent.confirmed_at = timezone.now()
+                    intent.save()
+                self.assertNotEqual(intent.foto_id, historical_photo.pk)
+                intent_before = UploadIntent.objects.filter(pk=intent.pk).values().get()
+                photo_before = Foto.objects.filter(pk=historical_photo.pk).values().get()
+                r2 = FakeCleanupR2()
+                r2.add(intent.object_key)
+                if intent.final_object_key:
+                    r2.add(intent.final_object_key)
+
+                result = cleanup_upload_intent(intent.pk, r2=r2)
+
+                r2.delete_object.assert_not_called()
+                self.assertEqual(result, "unsafe_key")
+                self.assertIn(intent.object_key, r2.objects)
+                intent.refresh_from_db()
+                self.assertIsNone(intent.cleaned_at)
+                self.assertEqual(
+                    UploadIntent.objects.filter(pk=intent.pk).values().get(),
+                    intent_before,
+                )
+                self.assertEqual(
+                    Foto.objects.filter(pk=historical_photo.pk).values().get(),
+                    photo_before,
+                )
+
+    def test_photo_reference_is_protected_even_in_another_event(self):
+        intent = self.create_intent()
+        other_event = Evento.objects.create(
+            nombre="Otro evento con referencia historica",
+            fecha=date(2026, 9, 2),
+        )
+        other_table = Mesa.objects.create(evento=other_event, numero=1)
+        photo = self.create_referencing_photo(
+            intent, evento=other_event, mesa=other_table,
+        )
+        r2 = FakeCleanupR2()
+        r2.add(intent.object_key)
+
+        result = cleanup_upload_intent(intent.pk, r2=r2)
+
+        self.assertEqual(result, "unsafe_key")
+        r2.delete_object.assert_not_called()
+        intent.refresh_from_db()
+        photo.refresh_from_db()
+        self.assertIsNone(intent.cleaned_at)
+        self.assertEqual(photo.object_key, intent.object_key)
+        self.assertIsNone(photo.eliminada_at)
+
+    def test_deleted_unlinked_photo_does_not_protect_temporary_key(self):
+        intent = self.create_intent()
+        photo = self.create_referencing_photo(intent, eliminada_at=timezone.now())
+        photo_before = Foto.objects.filter(pk=photo.pk).values().get()
+        r2 = FakeCleanupR2()
+        r2.add(intent.object_key)
+
+        result = cleanup_upload_intent(intent.pk, r2=r2)
+
+        self.assertEqual(result, "cleaned")
+        r2.delete_object.assert_called_once_with(
+            Bucket=settings.R2_BUCKET_NAME, Key=intent.object_key,
+        )
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.EXPIRED)
+        self.assertIsNotNone(intent.cleaned_at)
+        self.assertEqual(
+            Foto.objects.filter(pk=photo.pk).values().get(), photo_before,
+        )
+
+    def test_photo_with_similar_key_does_not_protect_temporary_key(self):
+        intent = self.create_intent()
+        photo = self.create_referencing_photo(
+            intent, object_key=intent.object_key + ".backup",
+        )
+        r2 = FakeCleanupR2()
+        r2.add(intent.object_key)
+        r2.add(photo.object_key)
+
+        result = cleanup_upload_intent(intent.pk, r2=r2)
+
+        self.assertEqual(result, "cleaned")
+        r2.delete_object.assert_called_once_with(
+            Bucket=settings.R2_BUCKET_NAME, Key=intent.object_key,
+        )
+        self.assertNotIn(intent.object_key, r2.objects)
+        self.assertIn(photo.object_key, r2.objects)
+        photo.refresh_from_db()
+        self.assertIsNone(photo.eliminada_at)
+
+    @patch("eventos.upload_cleanup.get_r2_client")
+    def test_dry_run_reports_unlinked_photo_as_unsafe(self, get_r2):
+        intent = self.create_intent()
+        photo = self.create_referencing_photo(intent)
+
+        output = self.run_command("--dry-run")
+
+        self.assertIn("unsafe_key=1", output)
+        get_r2.assert_not_called()
+        intent.refresh_from_db()
+        photo.refresh_from_db()
+        self.assertIsNone(intent.cleaned_at)
+        self.assertEqual(intent.estado, UploadIntent.Estado.PENDING)
+        self.assertEqual(photo.object_key, intent.object_key)
+        self.assertIsNone(photo.eliminada_at)
+
     @patch("eventos.upload_cleanup.get_r2_client")
     def test_current_pending_is_not_touched(self, get_r2):
         intent = self.create_intent(
