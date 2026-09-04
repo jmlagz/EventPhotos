@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from eventos.models import UploadIntent
+from eventos.observability import log_operation
 from eventos.upload_cleanup import (
     CLEANABLE_STATES,
     cleanup_cutoff,
@@ -54,6 +55,7 @@ class Command(BaseCommand):
                 raise CommandError("--intent-id debe ser un UUID válido.") from None
 
         dry_run = options["dry_run"]
+        mode = "dry-run" if dry_run else "cleanup"
         ahora = timezone.now()
         candidates = (
             UploadIntent.objects
@@ -94,23 +96,22 @@ class Command(BaseCommand):
                 # No imprimir excepciones que puedan contener claves o secretos.
                 result = "error"
             results[result] += 1
+            outcome = (
+                "would_clean" if result == "eligible"
+                else result if result in {"cleaned", "retry", "error"}
+                else "skipped"
+            )
+            state = (
+                upload_intent.estado
+                if upload_intent.estado in UploadIntent.Estado.values
+                else "unknown"
+            )
             if options["verbosity"] >= 2:
-                outcome = (
-                    "would_clean" if result == "eligible"
-                    else result if result in {"cleaned", "retry", "error"}
-                    else "skipped"
-                )
-                state = (
-                    upload_intent.estado
-                    if upload_intent.estado in UploadIntent.Estado.values
-                    else "unknown"
-                )
                 self.stdout.write(
                     f"intent={upload_intent.pk} state_before={state} "
                     f"result={outcome} reason={result}"
                 )
 
-        mode = "dry-run" if dry_run else "cleanup"
         errors = results["retry"] + results["error"]
         skipped = evaluated - results["eligible"] - results["cleaned"] - errors
         protected = results["unsafe_key"] + results["legacy_confirmed"]
@@ -134,6 +135,19 @@ class Command(BaseCommand):
         if candidate_count == 0:
             summary.append("sin candidatos")
         self.stdout.write(f"{mode}: {', '.join(summary)}")
+        log_operation(
+            "upload_cleanup_result",
+            scope="summary",
+            mode=mode,
+            candidates=candidate_count,
+            evaluated=evaluated,
+            would_clean=results["eligible"],
+            cleaned=results["cleaned"],
+            skipped=skipped,
+            protected=protected,
+            retry=results["retry"],
+            errors=errors,
+        )
         if errors:
             raise CommandError(
                 f"Cleanup incompleto: {errors} error(es) operativo(s); "

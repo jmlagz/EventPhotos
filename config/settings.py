@@ -170,6 +170,30 @@ LOGOUT_REDIRECT_URL = "/login/"
 
 EMAIL_BACKEND = "eventos.email_backend.EmailBackend"
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "operations_console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "operations",
+        },
+    },
+    "formatters": {
+        "operations": {
+            "format": "%(message)s",
+        },
+    },
+    "loggers": {
+        "eventos.operations": {
+            "handlers": ["operations_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
 EMAIL_HOST = os.getenv(
     "EMAIL_HOST",
 )

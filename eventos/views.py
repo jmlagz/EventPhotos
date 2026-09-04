@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 
 
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Sum
 from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
@@ -63,6 +63,8 @@ from .r2 import (
     eliminar_objeto,
     obtener_objeto,
 )
+from .observability import log_operation
+from .upload_quota import reservas_upload as _reservas_upload
 
 from .forms import (
     EventoForm,
@@ -101,78 +103,6 @@ def _final_object_key(upload_intent):
     )
 
 
-def _reservas_upload(
-    evento,
-    ahora,
-    excluir_intent_id=None,
-    incluir_pending_cantidad=True,
-    incluir_pending_almacenamiento=True,
-):
-    intents = UploadIntent.objects.filter(evento=evento)
-
-    if excluir_intent_id is not None:
-        intents = intents.exclude(pk=excluir_intent_id)
-
-    pending = {"cantidad": 0, "almacenamiento": 0}
-    if incluir_pending_cantidad or incluir_pending_almacenamiento:
-        pending = intents.filter(
-            estado=UploadIntent.Estado.PENDING,
-            expires_at__gt=ahora,
-        ).aggregate(
-            cantidad=Count("id"),
-            almacenamiento=Sum("tamaño_declarado"),
-        )
-    materializados = intents.filter(
-        Q(estado=UploadIntent.Estado.FINALIZING)
-        | Q(
-            estado=UploadIntent.Estado.CLEANUP_PENDING,
-            cleaned_at__isnull=True,
-        )
-        | Q(
-            estado=UploadIntent.Estado.CLEANUP_PENDING,
-            finalizing_at__isnull=False,
-        )
-    ).aggregate(
-        cantidad=Count("id"),
-        almacenamiento_real=Sum("tamaño_real"),
-        almacenamiento_declarado=Sum("tamaño_declarado"),
-    )
-
-    cantidad_pending = (
-        (pending["cantidad"] or 0)
-        if incluir_pending_cantidad
-        else 0
-    )
-    almacenamiento_pending = (
-        (pending["almacenamiento"] or 0)
-        if incluir_pending_almacenamiento
-        else 0
-    )
-    cantidad = cantidad_pending + (
-        materializados["cantidad"] or 0
-    )
-    almacenamiento = almacenamiento_pending
-
-    for intent in intents.filter(
-        Q(estado=UploadIntent.Estado.FINALIZING)
-        | Q(
-            estado=UploadIntent.Estado.CLEANUP_PENDING,
-            cleaned_at__isnull=True,
-        )
-        | Q(
-            estado=UploadIntent.Estado.CLEANUP_PENDING,
-            finalizing_at__isnull=False,
-        )
-    ).only("tamaño_real", "tamaño_declarado"):
-        almacenamiento += (
-            intent.tamaño_real
-            if intent.tamaño_real is not None
-            else intent.tamaño_declarado
-        )
-
-    return cantidad, almacenamiento
-
-
 def _codigo_error_r2(error):
     if not isinstance(error, ClientError):
         return None, None
@@ -191,6 +121,16 @@ def _es_objeto_r2_inexistente(error):
 def _es_precondicion_r2_fallida(error):
     codigo, status = _codigo_error_r2(error)
     return status == 412 or codigo in {"412", "PreconditionFailed"}
+
+
+def _clase_segura_error_r2(error):
+    if _es_objeto_r2_inexistente(error):
+        return "not_found"
+    if _es_precondicion_r2_fallida(error):
+        return "precondition_failed"
+    if isinstance(error, ClientError):
+        return "client_error"
+    return "unexpected_error"
 
 
 def _etag_para_metadata(etag):
@@ -768,13 +708,26 @@ def solicitar_url_subida(request, slug, token):
             expires_at=expires_at,
         )
 
+    log_operation(
+        "upload_intent_created",
+        intent_id=str(upload_intent.id),
+        state=upload_intent.estado,
+    )
+
     try:
         url = generar_url_subida(
             object_key=object_key,
             content_type=content_type,
             content_length=upload_intent.tamaño_declarado,
         )
-    except Exception:
+    except Exception as error:
+        log_operation(
+            "r2_operation_failed",
+            intent_id=str(upload_intent.id),
+            operation="presign_put",
+            error_class=_clase_segura_error_r2(error),
+        )
+        cancelled = False
         with transaction.atomic():
             evento_bloqueado = Evento.objects.select_for_update().get(
                 pk=evento.pk
@@ -788,6 +741,15 @@ def solicitar_url_subida(request, slug, token):
             if intent_bloqueado.estado == UploadIntent.Estado.PENDING:
                 intent_bloqueado.estado = UploadIntent.Estado.CANCELLED
                 intent_bloqueado.save(update_fields=["estado"])
+                cancelled = True
+
+        if cancelled:
+            log_operation(
+                "upload_intent_cancelled",
+                intent_id=str(upload_intent.id),
+                state=UploadIntent.Estado.CANCELLED,
+                reason="presign_failed",
+            )
 
         return JsonResponse(
             {"error": "No fue posible generar la URL de subida."},
@@ -838,6 +800,13 @@ def _materializar_y_confirmar_intent(
         or upload_intent.source_etag is None
         or upload_intent.tamaño_real is None
     ):
+        log_operation(
+            "upload_intent_confirmation_failed",
+            intent_id=str(upload_intent.id),
+            state=upload_intent.estado,
+            stage="materialization_prerequisites",
+            reason="missing_prerequisite",
+        )
         return JsonResponse(
             {"error": "La subida no puede materializarse."},
             status=409,
@@ -853,6 +822,19 @@ def _materializar_y_confirmar_intent(
         if _es_objeto_r2_inexistente(error):
             objeto_final = None
         else:
+            log_operation(
+                "r2_operation_failed",
+                intent_id=str(upload_intent.id),
+                operation="head_final",
+                error_class=_clase_segura_error_r2(error),
+            )
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=upload_intent.estado,
+                stage="head_final",
+                reason="r2_failure",
+            )
             return JsonResponse(
                 {"error": "No fue posible verificar el objeto final."},
                 status=503,
@@ -868,6 +850,13 @@ def _materializar_y_confirmar_intent(
 
     if objeto_final is not None:
         if not _objeto_final_corresponde(upload_intent, objeto_final):
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=upload_intent.estado,
+                stage="validate_final",
+                reason="object_mismatch",
+            )
             return JsonResponse(
                 {
                     "error": (
@@ -892,11 +881,25 @@ def _materializar_y_confirmar_intent(
                 ContentType=upload_intent.content_type_declarado,
             )
         except Exception as error:
+            error_class = _clase_segura_error_r2(error)
+            log_operation(
+                "r2_operation_failed",
+                intent_id=str(upload_intent.id),
+                operation="copy_to_final",
+                error_class=error_class,
+            )
             if _es_precondicion_r2_fallida(error):
                 _marcar_intent_para_limpieza(
                     evento,
                     mesa,
                     upload_intent,
+                )
+                log_operation(
+                    "upload_intent_confirmation_failed",
+                    intent_id=str(upload_intent.id),
+                    state=UploadIntent.Estado.CLEANUP_PENDING,
+                    stage="copy_to_final",
+                    reason="precondition_failed",
                 )
                 return JsonResponse(
                     {
@@ -908,6 +911,13 @@ def _materializar_y_confirmar_intent(
                     status=409,
                 )
 
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=upload_intent.estado,
+                stage="copy_to_final",
+                reason="r2_failure",
+            )
             return JsonResponse(
                 {"error": "No fue posible materializar la foto."},
                 status=503,
@@ -918,13 +928,33 @@ def _materializar_y_confirmar_intent(
                 Bucket=settings.R2_BUCKET_NAME,
                 Key=upload_intent.final_object_key,
             )
-        except Exception:
+        except Exception as error:
+            log_operation(
+                "r2_operation_failed",
+                intent_id=str(upload_intent.id),
+                operation="head_final_after_copy",
+                error_class=_clase_segura_error_r2(error),
+            )
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=upload_intent.estado,
+                stage="head_final_after_copy",
+                reason="r2_failure",
+            )
             return JsonResponse(
                 {"error": "No fue posible verificar el objeto final."},
                 status=503,
             )
 
         if not _objeto_final_corresponde(upload_intent, objeto_final):
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=upload_intent.estado,
+                stage="validate_final_after_copy",
+                reason="object_mismatch",
+            )
             return JsonResponse(
                 {"error": "El objeto final no pudo verificarse."},
                 status=409,
@@ -953,6 +983,13 @@ def _materializar_y_confirmar_intent(
             return _respuesta_intent_confirmado(intent_bloqueado)
 
         if intent_bloqueado.estado != UploadIntent.Estado.FINALIZING:
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=intent_bloqueado.estado,
+                stage="finalize_database",
+                reason="state_changed",
+            )
             return JsonResponse(
                 {"error": "La subida no puede confirmarse."},
                 status=409,
@@ -962,6 +999,13 @@ def _materializar_y_confirmar_intent(
             intent_bloqueado,
             objeto_final,
         ):
+            log_operation(
+                "upload_intent_confirmation_failed",
+                intent_id=str(upload_intent.id),
+                state=intent_bloqueado.estado,
+                stage="finalize_database",
+                reason="object_mismatch",
+            )
             return JsonResponse(
                 {"error": "El objeto final no pudo verificarse."},
                 status=409,
@@ -1006,6 +1050,11 @@ def _materializar_y_confirmar_intent(
             ]
         )
 
+    log_operation(
+        "upload_intent_confirmed",
+        intent_id=str(intent_bloqueado.id),
+        state=UploadIntent.Estado.CONFIRMED,
+    )
     return _respuesta_intent_confirmado(intent_bloqueado)
 
 
@@ -1141,6 +1190,13 @@ def confirmar_subida(request, slug, token):
             ):
                 intent_vencido.estado = UploadIntent.Estado.EXPIRED
                 intent_vencido.save(update_fields=["estado"])
+                log_operation(
+                    "upload_intent_confirmation_failed",
+                    intent_id=str(intent_vencido.id),
+                    state=UploadIntent.Estado.EXPIRED,
+                    stage="validate_intent",
+                    reason="expired",
+                )
                 return JsonResponse(
                     {"error": "El intento de subida ha expirado."},
                     status=410,
@@ -1162,7 +1218,20 @@ def confirmar_subida(request, slug, token):
         )
         tamaño_real = objeto_temporal["ContentLength"]
         source_etag = objeto_temporal["ETag"]
-    except Exception:
+    except Exception as error:
+        log_operation(
+            "r2_operation_failed",
+            intent_id=str(upload_intent.id),
+            operation="head_temporary",
+            error_class=_clase_segura_error_r2(error),
+        )
+        log_operation(
+            "upload_intent_confirmation_failed",
+            intent_id=str(upload_intent.id),
+            state=upload_intent.estado,
+            stage="head_temporary",
+            reason="r2_failure",
+        )
         return JsonResponse(
             {
                 "error": (
@@ -1248,6 +1317,11 @@ def confirmar_subida(request, slug, token):
                             "confirmed_at",
                             "estado",
                         ]
+                    )
+                    log_operation(
+                        "upload_intent_confirmed",
+                        intent_id=str(intent_bloqueado.id),
+                        state=UploadIntent.Estado.CONFIRMED,
                     )
                     return _respuesta_intent_confirmado(intent_bloqueado)
 
@@ -1379,6 +1453,11 @@ def confirmar_subida(request, slug, token):
                     "finalizing_at",
                     "estado",
                 ]
+            )
+            log_operation(
+                "upload_intent_finalizing",
+                intent_id=str(intent_bloqueado.id),
+                state=UploadIntent.Estado.FINALIZING,
             )
             intent_para_materializar = intent_bloqueado
 
