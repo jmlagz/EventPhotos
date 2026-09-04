@@ -375,9 +375,20 @@ button,
         const MAX_FOTOS = 20;
 
         let fotosSeleccionadas = [];
+        // Solo vive en esta página: nunca conservar URLs firmadas ni object_key.
+        const progresoFotos = new Map();
+        const MAX_REINTENTOS_CONFIRMACION = 3;
+        let enviando = false;
+        let confirmacionPendiente = null;
+        let loteDetenido = false;
 
 
         selector.addEventListener("change", function () {
+
+            if (enviando || confirmacionPendiente) return;
+            progresoFotos.clear();
+            loteDetenido = false;
+            botonSubir.textContent = "🚀 Compartir fotos";
 
             const nuevasFotos = Array.from(selector.files);
 
@@ -601,189 +612,199 @@ button,
         }
 
 
-        botonSubir.addEventListener("click", async function () {
+        async function enviarFoto(foto, i) {
 
-            if (fotosSeleccionadas.length === 0) {
-                return;
+            mensaje.textContent =
+                `Analizando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
+
+            // 1. Calculamos SHA-256 localmente
+            const hash = await calcularHash(foto);
+
+            console.log(
+                "SHA-256:",
+                foto.name,
+                hash
+            );
+
+            mensaje.textContent =
+                `Preparando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
+
+            // 2. Pedimos a Django una URL temporal
+            const datos = new URLSearchParams();
+
+            datos.append("nombre", foto.name);
+            datos.append("content_type", foto.type);
+            datos.append("hash_sha256", hash);
+            datos.append("tamaño", foto.size);
+
+            const respuesta = await fetch(
+                "{% url 'solicitar_url_subida' slug=evento.slug token=mesa.token %}",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
+                    },
+
+                    body: datos,
+                }
+            );
+
+            const resultado =
+                await respuesta.json();
+
+            if (!respuesta.ok) {
+
+                throw new Error(
+                    resultado.error ||
+                    "No fue posible preparar la subida."
+                );
+
             }
 
-            botonSubir.disabled = true;
+            // 3. La foto ya existe
+            if (resultado.duplicada) {
+                return { resultado: "duplicada" };
+            }
 
+            if (typeof resultado.upload_intent_id !== "string" ||
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultado.upload_intent_id)) {
+                throw new Error("No fue posible preparar la subida.");
+            }
+
+            // 4. Subimos directamente a R2
+            mensaje.textContent =
+                `Subiendo foto ${i + 1} de ${fotosSeleccionadas.length}...`;
+
+            const headersSubida =
+                resultado.headers || {
+                    "Content-Type": foto.type,
+                    "If-None-Match": "*",
+                };
+
+            const subida = await fetch(
+                resultado.url,
+                {
+                    method: "PUT",
+
+                    headers: headersSubida,
+
+                    body: foto,
+                }
+            );
+
+            if (!subida.ok) {
+
+                throw new Error(
+                    `No pudimos enviar ${foto.name}.`
+                );
+
+            }
+
+            // El PUT terminó. El único dato de red retenido es el UUID.
+            return {
+                uploadIntentId: resultado.upload_intent_id,
+                reintentos: 0,
+                resultado: null,
+            };
+        }
+
+
+        function errorConfirmacion(texto, retryable) {
+            const error = new Error(texto);
+            error.retryable = retryable;
+            return error;
+        }
+
+
+        async function confirmarFoto(registro) {
+            const generico = "No pudimos terminar de registrar tu foto.";
+            let respuesta;
+            try {
+                respuesta = await fetch(
+                    "{% url 'confirmar_subida' slug=evento.slug token=mesa.token %}",
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": "{{ csrf_token }}",
+                            "Content-Type": "application/x-www-form-urlencoded",
+                        },
+                        body: new URLSearchParams({
+                            upload_intent_id: registro.uploadIntentId,
+                        }),
+                    }
+                );
+            } catch (_) {
+                // Respuesta incierta: repetir solo confirmación es idempotente.
+                throw errorConfirmacion(generico, true);
+            }
+
+            const transitorio = [500, 502, 503, 504].includes(respuesta.status);
+            let datos = null;
+            try {
+                datos = await respuesta.json();
+            } catch (_) {
+                // Nunca mostrar el error técnico de parseo. Los 4xx siguen firmes.
+                throw errorConfirmacion(generico, respuesta.ok || transitorio);
+            }
+            if (respuesta.ok && datos && !datos.error &&
+                (datos.ok === true || datos.duplicada === true)) {
+                return datos.duplicada === true ? "duplicada" : "subida";
+            }
+            const texto = datos && typeof datos.error === "string" && datos.error
+                ? datos.error : generico;
+            // Un 2xx sin el contrato esperado es ambiguo, no una confirmación.
+            throw errorConfirmacion(texto, transitorio || (respuesta.ok && !datos?.error));
+        }
+
+
+        botonSubir.addEventListener("click", async function () {
+            if (enviando || loteDetenido || fotosSeleccionadas.length === 0 ||
+                botonSubir.disabled) return;
+
+            enviando = true;
+            botonSubir.disabled = true;
+            selector.disabled = true;
             mensaje.style.display = "block";
+            if (confirmacionPendiente) confirmacionPendiente.reintentos++;
+            confirmacionPendiente = null;
 
             try {
-
-                let subidas = 0;
-                let duplicadas = 0;
-
-                for (
-                    let i = 0;
-                    i < fotosSeleccionadas.length;
-                    i++
-                ) {
-
+                for (let i = 0; i < fotosSeleccionadas.length; i++) {
                     const foto = fotosSeleccionadas[i];
+                    let registro = progresoFotos.get(foto);
+                    if (!registro) {
+                        registro = await enviarFoto(foto, i);
+                        progresoFotos.set(foto, registro);
+                    }
+                    if (registro.resultado) continue;
 
                     mensaje.textContent =
-                        `Analizando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
-
-                    // 1. Calculamos SHA-256 localmente
-                    const hash = await calcularHash(foto);
-
-                    console.log(
-                        "SHA-256:",
-                        foto.name,
-                        hash
-                    );
-
-                    mensaje.textContent =
-                        `Preparando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
-
-                    // 2. Pedimos a Django una URL temporal
-                    const datos = new URLSearchParams();
-
-                    datos.append("nombre", foto.name);
-                    datos.append("content_type", foto.type);
-                    datos.append("hash_sha256", hash);
-                    datos.append("tamaño", foto.size);
-
-                    const respuesta = await fetch(
-                        "{% url 'solicitar_url_subida' slug=evento.slug token=mesa.token %}",
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken": "{{ csrf_token }}",
-                                "Content-Type":
-                                    "application/x-www-form-urlencoded",
-                            },
-
-                            body: datos,
+                        `Registrando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
+                    try {
+                        registro.resultado = await confirmarFoto(registro);
+                        delete registro.uploadIntentId;
+                    } catch (error) {
+                        const permitirRetry = error.retryable === true &&
+                            registro.reintentos < MAX_REINTENTOS_CONFIRMACION;
+                        confirmacionPendiente = permitirRetry ? registro : null;
+                        loteDetenido = !permitirRetry;
+                        mensaje.textContent = `❌ ${error.message}`;
+                        if (permitirRetry) {
+                            mensaje.textContent += " La foto ya fue enviada y puedes intentar completar el proceso sin volver a subirla. Mantén esta página abierta.";
+                        } else if (error.retryable) {
+                            mensaje.textContent += " No pudimos completarlo tras varios intentos. No volveremos a enviar la foto desde este proceso.";
                         }
-                    );
-
-                    const resultado =
-                        await respuesta.json();
-
-                    if (!respuesta.ok) {
-
-                        throw new Error(
-                            resultado.error ||
-                            "No fue posible preparar la subida."
-                        );
-
+                        return;
                     }
-
-                    // 3. La foto ya existe
-                    if (resultado.duplicada) {
-
-                        duplicadas++;
-
-                        continue;
-                    }
-
-                    // 4. Subimos directamente a R2
-                    mensaje.textContent =
-                        `Subiendo foto ${i + 1} de ${fotosSeleccionadas.length}...`;
-
-                    const headersSubida =
-                        resultado.headers || {
-                            "Content-Type": foto.type,
-                            "If-None-Match": "*",
-                        };
-
-                    const subida = await fetch(
-                        resultado.url,
-                        {
-                            method: "PUT",
-
-                            headers: headersSubida,
-
-                            body: foto,
-                        }
-                    );
-
-                    if (!subida.ok) {
-
-                        throw new Error(
-                            `R2 rechazó la subida de ${foto.name}.`
-                        );
-
-                    }
-
-                    // 5. Registramos la foto en Django
-                    const confirmacion =
-                        new URLSearchParams();
-
-                    confirmacion.append(
-                        "upload_intent_id",
-                        resultado.upload_intent_id
-                    );
-
-                    confirmacion.append(
-                        "object_key",
-                        resultado.object_key
-                    );
-
-                    confirmacion.append(
-                        "nombre",
-                        foto.name
-                    );
-
-                    confirmacion.append(
-                        "content_type",
-                        foto.type
-                    );
-
-                    confirmacion.append(
-                        "hash_sha256",
-                        hash
-                    );
-
-                    confirmacion.append(
-                        "tamaño",
-                        foto.size
-                    );
-
-                    const respuestaConfirmacion =
-                        await fetch(
-                            "{% url 'confirmar_subida' slug=evento.slug token=mesa.token %}",
-                            {
-                                method: "POST",
-
-                                headers: {
-                                    "X-CSRFToken": "{{ csrf_token }}",
-                                    "Content-Type":
-                                        "application/x-www-form-urlencoded",
-                                },
-
-                                body: confirmacion,
-                            }
-                        );
-
-                    const resultadoConfirmacion =
-                        await respuestaConfirmacion.json();
-
-                    if (!respuestaConfirmacion.ok) {
-
-                        throw new Error(
-                            resultadoConfirmacion.error ||
-                            "La foto se subió, pero no pudo registrarse."
-                        );
-
-                    }
-
-                    if (resultadoConfirmacion.duplicada) {
-
-                        duplicadas++;
-
-                    } else {
-
-                        subidas++;
-
-                    }
-
                 }
+
+                const resultados = Array.from(progresoFotos.values());
+                const subidas = resultados.filter(r => r.resultado === "subida").length;
+                const duplicadas = resultados.filter(r => r.resultado === "duplicada").length;
+                loteDetenido = true;
 
                 if (subidas > 0 && duplicadas > 0) {
 
@@ -810,8 +831,12 @@ button,
                 mensaje.textContent =
                     `❌ ${error.message}`;
 
-                botonSubir.disabled = false;
-
+            } finally {
+                enviando = false;
+                selector.disabled = confirmacionPendiente !== null;
+                botonSubir.textContent = confirmacionPendiente
+                    ? "Reintentar confirmación" : "🚀 Compartir fotos";
+                botonSubir.disabled = loteDetenido;
             }
 
         });
