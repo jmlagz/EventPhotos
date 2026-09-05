@@ -807,6 +807,17 @@
                 🖼️ Ver álbum del evento
             </a>
 
+            {% if evento.permite_album_publico %}
+                <a
+                    href="{% url 'slideshow' slug=evento.slug %}"
+                    class="button"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    ▶️ Abrir slideshow
+                </a>
+            {% endif %}
+
             <a
                 href="{% url 'descargar_fotos_evento' evento.slug %}"
                 class="download-all-button"
