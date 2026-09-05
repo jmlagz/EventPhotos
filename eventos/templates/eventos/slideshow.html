@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slideshow — {{ evento.nombre }}</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .slideshow {
+            position: relative;
+            display: grid;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            place-items: center;
+            background: #000;
+            isolation: isolate;
+        }
+        .slideshow__photo {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 400ms ease;
+        }
+        .slideshow__photo.is-visible { opacity: 1; }
+        .slideshow__status {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: grid;
+            place-items: center;
+            padding: 2rem;
+            background: #000;
+            color: #f5f5f5;
+            font-size: clamp(1rem, 2.2vw, 1.5rem);
+            text-align: center;
+        }
+        .slideshow__status[hidden] { display: none; }
+        .slideshow__event-name {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 3;
+            max-width: calc(100% - 2rem);
+            margin: 0;
+            padding: 0.45rem 0.7rem;
+            border-radius: 0.4rem;
+            background: rgb(0 0 0 / 55%);
+            color: rgb(255 255 255 / 85%);
+            font-size: clamp(0.85rem, 1.6vw, 1rem);
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .slideshow__controls {
+            position: absolute;
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            left: 50%;
+            z-index: 4;
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 999px;
+            background: rgb(0 0 0 / 62%);
+            backdrop-filter: blur(8px);
+            transform: translateX(-50%);
+            opacity: 1;
+            transition: opacity 180ms ease;
+        }
+        .slideshow.controls-hidden .slideshow__controls {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .slideshow__control {
+            min-width: 2.75rem;
+            min-height: 2.75rem;
+            padding: 0.55rem 0.8rem;
+            border: 1px solid rgb(255 255 255 / 32%);
+            border-radius: 999px;
+            background: rgb(20 20 20 / 82%);
+            color: #fff;
+            font: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .slideshow__control:hover { background: rgb(55 55 55 / 92%); }
+        .slideshow__control:focus-visible {
+            outline: 3px solid #fff;
+            outline-offset: 3px;
+        }
+        .slideshow__control:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+        @media (max-width: 520px) {
+            .slideshow__control {
+                padding-inline: 0.65rem;
+                font-size: 0.8rem;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .slideshow__photo,
+            .slideshow__controls { transition: none; }
+        }
+    </style>
+</head>
+<body>
+    <main
+        id="slideshow"
+        class="slideshow"
+        data-photos-url="{% url 'slideshow_photos' slug=evento.slug %}"
+        data-state="LOADING"
+    >
+        <img id="slideshow-image" class="slideshow__photo" alt="Foto del evento">
+        <div id="slideshow-status" class="slideshow__status" role="status" aria-live="polite">
+            Preparando presentación...
+        </div>
+        <h1 id="event-name" class="slideshow__event-name">{{ evento.nombre }}</h1>
+        <nav id="slideshow-controls" class="slideshow__controls" aria-label="Controles de la presentación">
+            <button id="slideshow-previous" class="slideshow__control" type="button" aria-label="Foto anterior">Anterior</button>
+            <button id="slideshow-toggle-playback" class="slideshow__control" type="button" aria-label="Pausar presentación">Pausar</button>
+            <button id="slideshow-next" class="slideshow__control" type="button" aria-label="Foto siguiente">Siguiente</button>
+            <button id="slideshow-fullscreen" class="slideshow__control" type="button" aria-label="Entrar en pantalla completa">Pantalla completa</button>
+        </nav>
+    </main>
+
+    <script>
+        (() => {
+            "use strict";
+
+            const AUTOPLAY_DELAY_MS = 7000;
+            const CONTROLS_HIDE_DELAY_MS = 3000;
+            const POLL_INTERVAL_MS = 5000;
+            const HIDDEN_POLL_INTERVAL_MS = 30000;
+            const MAX_POLL_BACKOFF_MS = 30000;
+            const RESYNC_INTERVAL_MS = 45 * 60 * 1000;
+            const MAX_CATALOG_PAGES = 10;
+            const STATES = Object.freeze({
+                LOADING: "LOADING",
+                EMPTY: "EMPTY",
+                PLAYING: "PLAYING",
+                PAUSED: "PAUSED",
+                ERROR_RECOVERABLE: "ERROR_RECOVERABLE",
+                UNAVAILABLE: "UNAVAILABLE",
+            });
+            const root = document.getElementById("slideshow");
+            const image = document.getElementById("slideshow-image");
+            const status = document.getElementById("slideshow-status");
+            const controls = document.getElementById("slideshow-controls");
+            const previousButton = document.getElementById("slideshow-previous");
+            const playbackButton = document.getElementById("slideshow-toggle-playback");
+            const nextButton = document.getElementById("slideshow-next");
+            const fullscreenButton = document.getElementById("slideshow-fullscreen");
+
+            let photos = [];
+            const photosById = new Map();
+            const newPhotoQueue = [];
+            let maxKnownId = null;
+            let currentIndex = -1;
+            let paused = false;
+            let autoplayTimer = null;
+            let controlsTimer = null;
+            let pollTimer = null;
+            let resyncTimer = null;
+            let requestInFlight = false;
+            let pollSoonWhenVisible = false;
+            let pollBackoffMs = POLL_INTERVAL_MS;
+            let unavailable = false;
+            let imageRequest = 0;
+            let preloadRequest = 0;
+            let preloader = null;
+            let preloaderLoaded = false;
+            const failedThisCycle = new Set();
+
+            function setState(state, message = "") {
+                root.dataset.state = state;
+                status.hidden = !message;
+                status.textContent = message;
+                if (state === STATES.PLAYING || state === STATES.PAUSED) {
+                    image.removeAttribute("aria-hidden");
+                } else {
+                    image.setAttribute("aria-hidden", "true");
+                }
+                if (state !== STATES.PLAYING) showControls(false);
+            }
+
+            function clearAutoplay() {
+                if (autoplayTimer !== null) {
+                    clearTimeout(autoplayTimer);
+                    autoplayTimer = null;
+                }
+            }
+
+            function clearPollTimer() {
+                if (pollTimer !== null) {
+                    clearTimeout(pollTimer);
+                    pollTimer = null;
+                }
+            }
+
+            function clearResyncTimer() {
+                if (resyncTimer !== null) {
+                    clearTimeout(resyncTimer);
+                    resyncTimer = null;
+                }
+            }
+
+            function validPhotoCount() {
+                return photos.length - failedThisCycle.size;
+            }
+
+            function findAvailableIndex(fromIndex, direction) {
+                if (photos.length === 0) return -1;
+                for (let step = 1; step < photos.length; step += 1) {
+                    const index = (fromIndex + direction * step + photos.length) % photos.length;
+                    if (!failedThisCycle.has(photos[index].id)) return index;
+                }
+                return -1;
+            }
+
+            function takePriorityIndex() {
+                while (newPhotoQueue.length > 0) {
+                    const id = newPhotoQueue.shift();
+                    const index = photos.findIndex(photo => photo.id === id);
+                    if (index >= 0 && index !== currentIndex && !failedThisCycle.has(id)) {
+                        return index;
+                    }
+                }
+                return -1;
+            }
+
+            function peekPriorityIndex() {
+                for (const id of newPhotoQueue) {
+                    const index = photos.findIndex(photo => photo.id === id);
+                    if (index >= 0 && index !== currentIndex && !failedThisCycle.has(id)) {
+                        return index;
+                    }
+                }
+                return -1;
+            }
+
+            function scheduleAutoplay() {
+                clearAutoplay();
+                if (paused || photos.length <= 1 || root.dataset.state !== STATES.PLAYING) return;
+                autoplayTimer = setTimeout(() => {
+                    autoplayTimer = null;
+                    move(1);
+                }, AUTOPLAY_DELAY_MS);
+            }
+
+            function preloadFollowing() {
+                const request = ++preloadRequest;
+                preloader = null;
+                preloaderLoaded = false;
+                if (currentIndex < 0 || validPhotoCount() <= 1) return;
+                const priorityIndex = peekPriorityIndex();
+                const nextIndex = priorityIndex >= 0
+                    ? priorityIndex
+                    : findAvailableIndex(currentIndex, 1);
+                if (nextIndex < 0 || nextIndex === currentIndex) return;
+                const candidate = photos[nextIndex];
+                const nextImage = new Image();
+                preloader = nextImage;
+                nextImage.onload = () => {
+                    if (request !== preloadRequest) return;
+                    preloader = nextImage;
+                    preloaderLoaded = true;
+                    let desiredIndex = peekPriorityIndex();
+                    if (desiredIndex < 0) desiredIndex = findAvailableIndex(currentIndex, 1);
+                    if (desiredIndex >= 0 && photos[desiredIndex].url !== candidate.url) {
+                        preloadFollowing();
+                    }
+                };
+                nextImage.onerror = () => {
+                    if (request !== preloadRequest) return;
+                    failedThisCycle.add(candidate.id);
+                    preloader = null;
+                    preloaderLoaded = false;
+                    if (validPhotoCount() <= 1) {
+                        scheduleAutoplay();
+                        return;
+                    }
+                    preloadFollowing();
+                };
+                nextImage.src = candidate.url;
+            }
+
+            function showPhoto(index) {
+                if (index < 0 || index >= photos.length) return;
+                clearAutoplay();
+                preloadRequest += 1;
+                if (preloader) {
+                    preloader.onload = null;
+                    preloader.onerror = null;
+                    preloader = null;
+                }
+                preloaderLoaded = false;
+                const request = ++imageRequest;
+                currentIndex = index;
+                root.dataset.currentPhotoId = String(photos[index].id);
+                image.classList.remove("is-visible");
+                image.onload = () => {
+                    if (request !== imageRequest) return;
+                    image.classList.add("is-visible");
+                    setState(paused ? STATES.PAUSED : STATES.PLAYING);
+                    preloadFollowing();
+                    scheduleAutoplay();
+                    showControls(true);
+                };
+                image.onerror = () => {
+                    if (request !== imageRequest) return;
+                    failedThisCycle.add(photos[index].id);
+                    image.classList.remove("is-visible");
+                    let nextIndex = takePriorityIndex();
+                    if (nextIndex < 0) nextIndex = findAvailableIndex(index, 1);
+                    if (nextIndex < 0) {
+                        clearAutoplay();
+                        setState(STATES.ERROR_RECOVERABLE, "No pudimos cargar esta foto");
+                        return;
+                    }
+                    showPhoto(nextIndex);
+                };
+                image.src = photos[index].url;
+            }
+
+            function move(direction) {
+                if (photos.length === 0 || currentIndex < 0) return;
+                const priorityIndex = direction > 0 ? takePriorityIndex() : -1;
+                let nextIndex = priorityIndex >= 0
+                    ? priorityIndex
+                    : findAvailableIndex(currentIndex, direction);
+                if (nextIndex < 0 && failedThisCycle.size > 0) {
+                    failedThisCycle.clear();
+                    nextIndex = findAvailableIndex(currentIndex, direction);
+                }
+                if (nextIndex < 0) {
+                    scheduleAutoplay();
+                    return;
+                }
+                const wrapped = priorityIndex < 0 && (direction > 0
+                    ? nextIndex <= currentIndex
+                    : nextIndex >= currentIndex);
+                if (wrapped) failedThisCycle.clear();
+                showPhoto(nextIndex);
+            }
+
+            function updatePlaybackButton() {
+                playbackButton.textContent = paused ? "Reanudar" : "Pausar";
+                playbackButton.setAttribute("aria-label", paused ? "Reanudar presentación" : "Pausar presentación");
+            }
+
+            function togglePlayback() {
+                if (photos.length === 0 || currentIndex < 0) return;
+                paused = !paused;
+                updatePlaybackButton();
+                if (paused) {
+                    clearAutoplay();
+                    setState(STATES.PAUSED);
+                } else {
+                    setState(STATES.PLAYING);
+                    scheduleAutoplay();
+                    showControls(true);
+                }
+            }
+
+            function showControls(autoHide = true) {
+                root.classList.remove("controls-hidden");
+                if (controlsTimer !== null) {
+                    clearTimeout(controlsTimer);
+                    controlsTimer = null;
+                }
+                if (!autoHide || paused || root.dataset.state !== STATES.PLAYING) return;
+                controlsTimer = setTimeout(() => {
+                    controlsTimer = null;
+                    if (paused || root.dataset.state !== STATES.PLAYING || controls.contains(document.activeElement)) {
+                        showControls(true);
+                        return;
+                    }
+                    root.classList.add("controls-hidden");
+                }, CONTROLS_HIDE_DELAY_MS);
+            }
+
+            function updateFullscreenButton() {
+                const active = document.fullscreenElement === root;
+                fullscreenButton.textContent = active ? "Salir de pantalla completa" : "Pantalla completa";
+                fullscreenButton.setAttribute("aria-label", active ? "Salir de pantalla completa" : "Entrar en pantalla completa");
+            }
+
+            async function toggleFullscreen() {
+                try {
+                    if (document.fullscreenElement) {
+                        if (document.exitFullscreen) await document.exitFullscreen();
+                    } else if (root.requestFullscreen) {
+                        await root.requestFullscreen();
+                    }
+                } catch (_) {
+                    // Fullscreen es una mejora opcional; el player continúa funcionando.
+                }
+                updateFullscreenButton();
+                showControls(true);
+            }
+
+            function normalizePhotos(items) {
+                const unique = new Map();
+                for (const photo of items) {
+                    if (!photo || !Number.isSafeInteger(photo.id) || photo.id <= 0 ||
+                        typeof photo.url !== "string" || photo.url.length === 0) continue;
+                    if (!unique.has(photo.id)) unique.set(photo.id, photo);
+                }
+                return Array.from(unique.values()).sort((left, right) => left.id - right.id);
+            }
+
+            async function fetchPhotoPages(afterId = null) {
+                const collected = [];
+                let cursor = afterId;
+                let hasMore = true;
+                let pageCount = 0;
+                while (hasMore) {
+                    pageCount += 1;
+                    if (pageCount > MAX_CATALOG_PAGES) throw new Error("catalog");
+                    const url = new URL(root.dataset.photosUrl, window.location.href);
+                    if (cursor !== null) url.searchParams.set("after_id", String(cursor));
+                    const response = await fetch(url.toString(), {
+                        method: "GET",
+                        headers: { "Accept": "application/json" },
+                        cache: "no-store",
+                        credentials: "same-origin",
+                    });
+                    if (!response.ok) {
+                        const error = new Error("catalog");
+                        error.unavailable = response.status === 404;
+                        throw error;
+                    }
+                    const payload = await response.json();
+                    if (!payload || !Array.isArray(payload.photos) || typeof payload.has_more !== "boolean") {
+                        throw new Error("catalog");
+                    }
+                    collected.push(...payload.photos);
+                    hasMore = payload.has_more;
+                    if (hasMore) {
+                        const nextCursor = payload.next_after_id;
+                        if (!Number.isSafeInteger(nextCursor) || nextCursor <= 0 ||
+                            (cursor !== null && nextCursor <= cursor)) {
+                            throw new Error("catalog");
+                        }
+                        cursor = nextCursor;
+                    }
+                }
+                return normalizePhotos(collected);
+            }
+
+            function replaceCatalog(snapshot) {
+                photos = snapshot;
+                photosById.clear();
+                for (const photo of photos) photosById.set(photo.id, photo);
+                maxKnownId = photos.length > 0 ? photos[photos.length - 1].id : null;
+            }
+
+            function integrateNewPhotos(incoming) {
+                if (incoming.length === 0) return 0;
+                const currentId = currentIndex >= 0 ? photos[currentIndex]?.id : null;
+                let added = 0;
+                for (const photo of incoming) {
+                    if (photosById.has(photo.id)) continue;
+                    photosById.set(photo.id, photo);
+                    newPhotoQueue.push(photo.id);
+                    added += 1;
+                }
+                if (added === 0) return 0;
+                photos = Array.from(photosById.values()).sort((left, right) => left.id - right.id);
+                maxKnownId = photos[photos.length - 1].id;
+                currentIndex = currentId === null
+                    ? -1
+                    : photos.findIndex(photo => photo.id === currentId);
+                let startedPhoto = false;
+                if (currentIndex < 0 || root.dataset.state === STATES.ERROR_RECOVERABLE) {
+                    const nextIndex = takePriorityIndex();
+                    if (nextIndex >= 0) {
+                        showPhoto(nextIndex);
+                        startedPhoto = true;
+                    }
+                } else if (!paused && root.dataset.state === STATES.PLAYING && autoplayTimer === null) {
+                    scheduleAutoplay();
+                }
+                if (!startedPhoto && currentIndex >= 0 && (preloader === null || preloaderLoaded)) {
+                    preloadFollowing();
+                }
+                return added;
+            }
+
+            function markUnavailable() {
+                unavailable = true;
+                clearPollTimer();
+                clearResyncTimer();
+                clearAutoplay();
+                imageRequest += 1;
+                preloadRequest += 1;
+                if (preloader) {
+                    preloader.onload = null;
+                    preloader.onerror = null;
+                    preloader = null;
+                }
+                preloaderLoaded = false;
+                image.onload = null;
+                image.onerror = null;
+                image.classList.remove("is-visible");
+                image.removeAttribute("src");
+                currentIndex = -1;
+                delete root.dataset.currentPhotoId;
+                setState(STATES.UNAVAILABLE, "Presentación no disponible");
+            }
+
+            function applySnapshot(snapshot) {
+                const currentId = currentIndex >= 0 ? photos[currentIndex]?.id : null;
+                replaceCatalog(snapshot);
+                failedThisCycle.clear();
+                const retainedQueue = newPhotoQueue.filter(id => photosById.has(id));
+                newPhotoQueue.splice(0, newPhotoQueue.length, ...retainedQueue);
+
+                if (photos.length === 0) {
+                    clearAutoplay();
+                    imageRequest += 1;
+                    image.classList.remove("is-visible");
+                    image.removeAttribute("src");
+                    currentIndex = -1;
+                    delete root.dataset.currentPhotoId;
+                    setState(STATES.EMPTY, "Esperando nuevas fotos");
+                    return;
+                }
+
+                const preservedIndex = currentId === null
+                    ? -1
+                    : photos.findIndex(photo => photo.id === currentId);
+                if (preservedIndex >= 0 && root.dataset.state !== STATES.ERROR_RECOVERABLE) {
+                    currentIndex = preservedIndex;
+                    root.dataset.currentPhotoId = String(currentId);
+                    if (preloader === null || preloaderLoaded) preloadFollowing();
+                    return;
+                }
+
+                let replacementIndex = 0;
+                if (currentId !== null) {
+                    const followingIndex = photos.findIndex(photo => photo.id > currentId);
+                    replacementIndex = followingIndex >= 0 ? followingIndex : 0;
+                }
+                showPhoto(replacementIndex);
+            }
+
+            function nextPollDelay() {
+                return document.hidden ? HIDDEN_POLL_INTERVAL_MS : pollBackoffMs;
+            }
+
+            function schedulePoll(delay = nextPollDelay()) {
+                clearPollTimer();
+                if (unavailable) return;
+                pollTimer = setTimeout(() => {
+                    pollTimer = null;
+                    pollForNewPhotos();
+                }, delay);
+            }
+
+            function scheduleResync(delay = RESYNC_INTERVAL_MS) {
+                clearResyncTimer();
+                if (unavailable) return;
+                resyncTimer = setTimeout(() => {
+                    resyncTimer = null;
+                    resyncCatalog();
+                }, delay);
+            }
+
+            async function pollForNewPhotos() {
+                if (unavailable) return;
+                if (requestInFlight) {
+                    schedulePoll();
+                    return;
+                }
+                requestInFlight = true;
+                try {
+                    const incoming = await fetchPhotoPages(maxKnownId);
+                    integrateNewPhotos(incoming);
+                    pollBackoffMs = POLL_INTERVAL_MS;
+                    if (photos.length === 0 && currentIndex < 0) {
+                        setState(STATES.EMPTY, "Esperando nuevas fotos");
+                    }
+                } catch (error) {
+                    if (error && error.unavailable) {
+                        markUnavailable();
+                    } else {
+                        pollBackoffMs = Math.min(pollBackoffMs * 2, MAX_POLL_BACKOFF_MS);
+                    }
+                } finally {
+                    requestInFlight = false;
+                    if (!unavailable) {
+                        if (pollSoonWhenVisible) {
+                            pollSoonWhenVisible = false;
+                            schedulePoll(0);
+                        } else {
+                            schedulePoll();
+                        }
+                    }
+                }
+            }
+
+            async function resyncCatalog() {
+                if (unavailable) return;
+                if (requestInFlight) {
+                    scheduleResync(POLL_INTERVAL_MS);
+                    return;
+                }
+                requestInFlight = true;
+                let nextResyncDelay = RESYNC_INTERVAL_MS;
+                try {
+                    const snapshot = await fetchPhotoPages();
+                    applySnapshot(snapshot);
+                } catch (error) {
+                    if (error && error.unavailable) {
+                        markUnavailable();
+                    } else {
+                        nextResyncDelay = MAX_POLL_BACKOFF_MS;
+                    }
+                } finally {
+                    requestInFlight = false;
+                    if (!unavailable) {
+                        scheduleResync(nextResyncDelay);
+                        if (pollSoonWhenVisible) {
+                            pollSoonWhenVisible = false;
+                            schedulePoll(0);
+                        }
+                    }
+                }
+            }
+
+            function startLiveSchedulers() {
+                schedulePoll();
+                scheduleResync();
+            }
+
+            async function start() {
+                setState(STATES.LOADING, "Preparando presentación...");
+                try {
+                    const snapshot = await fetchPhotoPages();
+                    replaceCatalog(snapshot);
+                } catch (error) {
+                    if (error && error.unavailable) {
+                        markUnavailable();
+                        return;
+                    }
+                    setState(STATES.ERROR_RECOVERABLE, "No pudimos cargar esta foto");
+                    startLiveSchedulers();
+                    return;
+                }
+                if (photos.length === 0) {
+                    setState(STATES.EMPTY, "Esperando nuevas fotos");
+                } else {
+                    showPhoto(0);
+                }
+                startLiveSchedulers();
+            }
+
+            previousButton.addEventListener("click", () => { showControls(true); move(-1); });
+            playbackButton.addEventListener("click", () => { showControls(true); togglePlayback(); });
+            nextButton.addEventListener("click", () => { showControls(true); move(1); });
+            fullscreenButton.addEventListener("click", toggleFullscreen);
+            document.addEventListener("fullscreenchange", updateFullscreenButton);
+            document.addEventListener("keydown", event => {
+                if (event.repeat) return;
+                if (event.target && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(event.target.tagName)) return;
+                const key = event.key.toLowerCase();
+                if (["arrowleft", "arrowright", " ", "f"].includes(key)) event.preventDefault();
+                if (key === "arrowleft") move(-1);
+                if (key === "arrowright") move(1);
+                if (key === " ") togglePlayback();
+                if (key === "f") toggleFullscreen();
+                showControls(true);
+            });
+            document.addEventListener("visibilitychange", () => {
+                if (unavailable) return;
+                if (document.hidden) {
+                    pollSoonWhenVisible = false;
+                    schedulePoll(HIDDEN_POLL_INTERVAL_MS);
+                } else if (requestInFlight) {
+                    pollSoonWhenVisible = true;
+                } else {
+                    schedulePoll(0);
+                }
+            });
+            root.addEventListener("mousemove", () => showControls(true));
+            root.addEventListener("touchstart", () => showControls(true), { passive: true });
+
+            if (!root.requestFullscreen || !document.exitFullscreen) {
+                fullscreenButton.disabled = true;
+                fullscreenButton.title = "Pantalla completa no disponible";
+            }
+            updatePlaybackButton();
+            updateFullscreenButton();
+            start();
+        })();
+    </script>
+</body>
+</html>

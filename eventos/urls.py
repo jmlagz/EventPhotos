@@ -108,6 +108,18 @@ urlpatterns = [
     ),
 
     path(
+        "fotos/<slug:slug>/slideshow/",
+        views.slideshow,
+        name="slideshow",
+    ),
+
+    path(
+        "fotos/<slug:slug>/slideshow/photos/",
+        views.slideshow_photos,
+        name="slideshow_photos",
+    ),
+
+    path(
         "fotos/<slug:slug>/foto/<int:foto_id>/eliminar/",
         views.eliminar_foto,
         name="eliminar_foto",

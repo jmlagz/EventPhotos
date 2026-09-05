@@ -35,7 +35,7 @@ from .limites import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -1523,6 +1523,103 @@ def eliminar_foto(request, slug, foto_id):
         {
             "ok": True,
             "mensaje": "Foto eliminada correctamente.",
+        }
+    )
+
+
+SLIDESHOW_PHOTO_PAGE_SIZE = 100
+SLIDESHOW_MAX_PHOTO_ID = 9_223_372_036_854_775_807
+
+
+def _evento_slideshow_disponible(slug):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
+    if not evento.permite_album_publico():
+        raise Http404("Slideshow no disponible.")
+
+    return evento
+
+
+def _slideshow_json(payload, *, status=200):
+    response = JsonResponse(payload, status=status)
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@require_GET
+def slideshow(request, slug):
+    evento = _evento_slideshow_disponible(slug)
+
+    return render(
+        request,
+        "eventos/slideshow.html",
+        {"evento": evento},
+    )
+
+
+@require_GET
+def slideshow_photos(request, slug):
+    evento = _evento_slideshow_disponible(slug)
+    after_id_raw = request.GET.get("after_id")
+    after_id = None
+
+    if after_id_raw is not None:
+        try:
+            after_id = int(after_id_raw)
+        except (TypeError, ValueError):
+            after_id = None
+
+        if (
+            after_id is None
+            or after_id <= 0
+            or after_id > SLIDESHOW_MAX_PHOTO_ID
+        ):
+            return _slideshow_json(
+                {"error": "El cursor after_id no es válido."},
+                status=400,
+            )
+
+    fotos = Foto.objects.filter(
+        evento=evento,
+        eliminada_at__isnull=True,
+    ).order_by("id")
+
+    if after_id is not None:
+        fotos = fotos.filter(id__gt=after_id)
+
+    candidatas = list(fotos[:SLIDESHOW_PHOTO_PAGE_SIZE + 1])
+    has_more = len(candidatas) > SLIDESHOW_PHOTO_PAGE_SIZE
+    candidatas = candidatas[:SLIDESHOW_PHOTO_PAGE_SIZE]
+
+    try:
+        photos = [
+            {
+                "id": foto.id,
+                "url": generar_url_lectura(foto.object_key),
+                "created_at": foto.creada_en.isoformat(),
+            }
+            for foto in candidatas
+        ]
+    except Exception:
+        return _slideshow_json(
+            {"error": "No fue posible preparar las fotos."},
+            status=503,
+        )
+
+    next_after_id = photos[-1]["id"] if photos else after_id
+
+    return _slideshow_json(
+        {
+            "photos": photos,
+            "next_after_id": next_after_id,
+            "has_more": has_more,
         }
     )
 
