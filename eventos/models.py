@@ -377,6 +377,44 @@ class Foto(models.Model):
         ]
 
 
+class SlideshowPromo(models.Model):
+    class Tipo(models.TextChoices):
+        EMOTIVA = "emotiva", "Emotiva"
+        FOTOGRAFO = "fotografo", "Saca al fotógrafo que llevas dentro"
+        INSTRUCCIONES = "instrucciones", "Instrucciones"
+
+    tipo = models.CharField(max_length=20, choices=Tipo.choices, unique=True)
+    titulo_interno = models.CharField(max_length=200)
+    imagen_key = models.CharField(max_length=500, blank=True, editable=False)
+    activa = models.BooleanField(default=False)
+    orden = models.PositiveSmallIntegerField()
+    creada_en = models.DateTimeField(auto_now_add=True)
+    actualizada_en = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        if self.activa and not self.imagen_key:
+            raise ValidationError(
+                {"imagen_key": "Una promo activa requiere una imagen."}
+            )
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} ({self.titulo_interno})"
+
+    class Meta:
+        ordering = ["orden", "tipo"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(orden__gte=1) & models.Q(orden__lte=3),
+                name="slideshow_promo_orden_entre_1_y_3",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(activa=False) | ~models.Q(imagen_key=""),
+                name="slideshow_promo_activa_requiere_imagen",
+            ),
+        ]
+
+
 class UploadIntent(models.Model):
 
     class Estado(models.TextChoices):
