@@ -225,6 +225,28 @@
         font-size: 14px;
     }
 
+    .button-disabled {
+        background: #e5e7eb;
+        color: var(--color-text-secondary);
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .button-disabled:hover {
+        background: #e5e7eb;
+        color: var(--color-text-secondary);
+        box-shadow: none;
+        transform: none;
+    }
+
+    .album-unavailable-help,
+    .lifecycle-help {
+        flex-basis: 100%;
+        margin: 0;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+    }
+
 
     /* =========================
        RESPONSIVE
@@ -751,6 +773,7 @@
                 method="post"
                 action="{% url 'activar_evento' evento.slug %}"
                 style="margin-top: 12px;"
+                onsubmit="return confirm('Activar el evento permitirá el acceso público y la carga de fotos según su configuración. ¿Deseas continuar?');"
             >
                 {% csrf_token %}
 
@@ -760,6 +783,10 @@
                 >
                     🚀 Activar evento
                 </button>
+
+                <p class="lifecycle-help">
+                    Al activarlo, los invitados podrán acceder según la configuración vigente.
+                </p>
             </form>
         {% endif %}
 
@@ -768,6 +795,7 @@
                 method="post"
                 action="{% url 'reabrir_evento' evento.slug %}"
                 style="margin-top: 12px;"
+                onsubmit="return confirm('Reabrir el evento no extenderá las fechas de carga ni del álbum. ¿Deseas continuar?');"
             >
                 {% csrf_token %}
 
@@ -777,6 +805,10 @@
                 >
                     🔓 Reabrir evento
                 </button>
+
+                <p class="lifecycle-help">
+                    Reabrir no modifica ni extiende las fechas configuradas.
+                </p>
             </form>
         {% endif %}
 
@@ -785,6 +817,7 @@
                 method="post"
                 action="{% url 'cerrar_evento' evento.slug %}"
                 style="margin-top: 12px;"
+                onsubmit="return confirm('Cerrar el evento bloqueará inmediatamente nuevas cargas. El álbum conservará sus reglas de disponibilidad. ¿Deseas continuar?');"
             >
                 {% csrf_token %}
 
@@ -794,18 +827,35 @@
                 >
                     🔒 Cerrar evento
                 </button>
+
+                <p class="lifecycle-help">
+                    Cerrar bloquea inmediatamente nuevas cargas de fotos.
+                </p>
             </form>
         {% endif %}
 
         <div class="buttons" style="margin-top: 10px;">
 
-            <a
-                href="{% url 'album_publico' slug=evento.slug %}"
-                class="button"
-                target="_blank"
-            >
-                🖼️ Ver álbum del evento
-            </a>
+            {% if evento.permite_album_publico %}
+                <a
+                    href="{% url 'album_publico' slug=evento.slug %}"
+                    class="button"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    🖼️ Ver álbum del evento
+                </a>
+            {% else %}
+                <span
+                    class="button button-disabled"
+                    aria-disabled="true"
+                >
+                    🖼️ Álbum no disponible actualmente
+                </span>
+                <p class="album-unavailable-help">
+                    El estado o periodo de disponibilidad del evento no permite abrir el álbum.
+                </p>
+            {% endif %}
 
             {% if evento.permite_album_publico %}
                 <a

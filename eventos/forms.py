@@ -18,11 +18,6 @@ class EventoForm(forms.ModelForm):
             "fecha",
             "descripcion",
             "mensaje_bienvenida",
-            "color_principal",
-            "color_secundario",
-            "plantilla",
-            "permitir_videos",
-            "moderacion_activa",
         ]
 
         widgets = {
