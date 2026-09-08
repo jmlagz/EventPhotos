@@ -120,6 +120,12 @@ urlpatterns = [
     ),
 
     path(
+        "fotos/<slug:slug>/slideshow/promos/",
+        views.slideshow_promos,
+        name="slideshow_promos",
+    ),
+
+    path(
         "fotos/<slug:slug>/foto/<int:foto_id>/eliminar/",
         views.eliminar_foto,
         name="eliminar_foto",

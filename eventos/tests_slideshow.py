@@ -9,7 +9,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Evento, Foto, Mesa
+from .models import Evento, Foto, Mesa, SlideshowPromo
 
 
 class SlideshowBackendTests(TestCase):
@@ -55,6 +55,18 @@ class SlideshowBackendTests(TestCase):
 
     def photos_url(self, evento):
         return reverse("slideshow_photos", args=[evento.slug])
+
+    def promos_url(self, evento):
+        return reverse("slideshow_promos", args=[evento.slug])
+
+    def create_promo(self, *, tipo, orden, activa=True, imagen_key=None):
+        return SlideshowPromo.objects.create(
+            tipo=tipo,
+            titulo_interno=f"Interno {tipo}",
+            imagen_key=imagen_key or f"slideshow-promos/{tipo}/private.jpg",
+            activa=activa,
+            orden=orden,
+        )
 
     def test_player_active_available_returns_200(self):
         evento = self.create_event()
@@ -116,6 +128,113 @@ class SlideshowBackendTests(TestCase):
         self.assertFalse(
             any("eventos_foto" in query["sql"].lower() for query in queries)
         )
+
+    @patch(
+        "eventos.views.generar_url_lectura",
+        side_effect=lambda key: f"https://signed.test/{key.rsplit('/', 1)[-1]}",
+    )
+    def test_promos_endpoint_returns_only_active_ordered_public_fields(self, _sign):
+        evento = self.create_event()
+        first = self.create_promo(
+            tipo=SlideshowPromo.Tipo.FOTOGRAFO,
+            orden=2,
+        )
+        second = self.create_promo(
+            tipo=SlideshowPromo.Tipo.EMOTIVA,
+            orden=1,
+        )
+        self.create_promo(
+            tipo=SlideshowPromo.Tipo.INSTRUCCIONES,
+            orden=3,
+            activa=False,
+        )
+
+        response = self.client.get(self.promos_url(evento))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertEqual(
+            [promo["id"] for promo in response.json()["promos"]],
+            [second.pk, first.pk],
+        )
+        self.assertEqual(
+            set(response.json()["promos"][0]),
+            {"id", "type", "url", "order"},
+        )
+        serialized = response.content.decode("utf-8")
+        self.assertNotIn(second.imagen_key, serialized)
+        self.assertNotIn(second.titulo_interno, serialized)
+
+    def test_promos_endpoint_empty_and_post_is_not_allowed(self):
+        evento = self.create_event()
+
+        response = self.client.get(self.promos_url(evento))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"promos": []})
+        self.assertEqual(self.client.post(self.promos_url(evento)).status_code, 405)
+
+    def test_promos_endpoint_allows_closed_available_event(self):
+        evento = self.create_event(
+            estado=Evento.Estado.CLOSED,
+            available_until=timezone.now() + timedelta(days=1),
+        )
+
+        response = self.client.get(self.promos_url(evento))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"promos": []})
+
+    @patch("eventos.views.generar_url_lectura", return_value="https://signed.test/promo")
+    def test_promos_endpoint_returns_the_three_configured_types_at_most(self, _sign):
+        evento = self.create_event()
+        for orden, tipo in enumerate(SlideshowPromo.Tipo.values, start=1):
+            self.create_promo(tipo=tipo, orden=orden)
+
+        response = self.client.get(self.promos_url(evento))
+
+        self.assertEqual(len(response.json()["promos"]), 3)
+
+    def test_promos_endpoint_obeys_slideshow_availability(self):
+        cases = (
+            (Evento.Estado.DRAFT, None),
+            (Evento.Estado.ARCHIVED, None),
+            (Evento.Estado.CLOSED, timezone.now() - timedelta(seconds=1)),
+        )
+        for estado, available_until in cases:
+            with self.subTest(estado=estado):
+                evento = self.create_event(
+                    estado=estado,
+                    available_until=available_until,
+                )
+                self.assertEqual(self.client.get(self.promos_url(evento)).status_code, 404)
+
+    @patch("eventos.views.generar_url_lectura")
+    def test_promos_endpoint_omits_only_promos_that_cannot_be_signed(self, sign):
+        evento = self.create_event()
+        failed = self.create_promo(tipo=SlideshowPromo.Tipo.EMOTIVA, orden=1)
+        visible = self.create_promo(tipo=SlideshowPromo.Tipo.FOTOGRAFO, orden=2)
+        sign.side_effect = [RuntimeError("provider failure"), "https://signed.test/ok"]
+
+        response = self.client.get(self.promos_url(evento))
+
+        self.assertEqual(response.json()["promos"], [{
+            "id": visible.pk,
+            "type": visible.tipo,
+            "url": "https://signed.test/ok",
+            "order": visible.orden,
+        }])
+        self.assertNotEqual(failed.pk, visible.pk)
+
+    @patch("eventos.views.generar_url_lectura", side_effect=RuntimeError("provider failure"))
+    def test_promos_endpoint_returns_empty_when_all_signatures_fail(self, _sign):
+        evento = self.create_event()
+        self.create_promo(tipo=SlideshowPromo.Tipo.EMOTIVA, orden=1)
+        self.create_promo(tipo=SlideshowPromo.Tipo.FOTOGRAFO, orden=2)
+
+        response = self.client.get(self.promos_url(evento))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"promos": []})
 
     @patch(
         "eventos.views.generar_url_lectura",

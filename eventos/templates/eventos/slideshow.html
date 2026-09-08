@@ -133,6 +133,7 @@
         id="slideshow"
         class="slideshow"
         data-photos-url="{% url 'slideshow_photos' slug=evento.slug %}"
+        data-promos-url="{% url 'slideshow_promos' slug=evento.slug %}"
         data-state="LOADING"
     >
         <img id="slideshow-image" class="slideshow__photo" alt="Foto del evento">
@@ -153,6 +154,8 @@
             "use strict";
 
             const AUTOPLAY_DELAY_MS = 7000;
+            const PROMO_AUTOPLAY_DELAY_MS = 5000;
+            const PROMO_EVERY_N_PHOTOS = 8;
             const CONTROLS_HIDE_DELAY_MS = 3000;
             const POLL_INTERVAL_MS = 5000;
             const HIDDEN_POLL_INTERVAL_MS = 30000;
@@ -179,6 +182,11 @@
             let photos = [];
             const photosById = new Map();
             const newPhotoQueue = [];
+            let promos = [];
+            let nextPromoIndex = 0;
+            const failedPromoIds = new Set();
+            let photosSincePromo = 0;
+            let currentSlideKind = "photo";
             let maxKnownId = null;
             let currentIndex = -1;
             let paused = false;
@@ -266,10 +274,13 @@
             function scheduleAutoplay() {
                 clearAutoplay();
                 if (paused || photos.length <= 1 || root.dataset.state !== STATES.PLAYING) return;
+                const delay = currentSlideKind === "promo"
+                    ? PROMO_AUTOPLAY_DELAY_MS
+                    : AUTOPLAY_DELAY_MS;
                 autoplayTimer = setTimeout(() => {
                     autoplayTimer = null;
-                    move(1);
-                }, AUTOPLAY_DELAY_MS);
+                    move(1, true);
+                }, delay);
             }
 
             function preloadFollowing() {
@@ -309,7 +320,7 @@
                 nextImage.src = candidate.url;
             }
 
-            function showPhoto(index) {
+            function showPhoto(index, countForPromo = false) {
                 if (index < 0 || index >= photos.length) return;
                 clearAutoplay();
                 preloadRequest += 1;
@@ -321,10 +332,14 @@
                 preloaderLoaded = false;
                 const request = ++imageRequest;
                 currentIndex = index;
+                currentSlideKind = "photo";
+                root.dataset.currentSlideKind = "photo";
                 root.dataset.currentPhotoId = String(photos[index].id);
                 image.classList.remove("is-visible");
+                image.alt = "Foto del evento";
                 image.onload = () => {
                     if (request !== imageRequest) return;
+                    if (countForPromo) photosSincePromo += 1;
                     image.classList.add("is-visible");
                     setState(paused ? STATES.PAUSED : STATES.PLAYING);
                     preloadFollowing();
@@ -342,14 +357,17 @@
                         setState(STATES.ERROR_RECOVERABLE, "No pudimos cargar esta foto");
                         return;
                     }
-                    showPhoto(nextIndex);
+                    showPhoto(nextIndex, countForPromo);
                 };
                 image.src = photos[index].url;
             }
 
-            function move(direction) {
+            function move(direction, autoplay = false) {
                 if (photos.length === 0 || currentIndex < 0) return;
                 const priorityIndex = direction > 0 ? takePriorityIndex() : -1;
+                if (autoplay && direction > 0 && priorityIndex < 0 && promoIsDue()) {
+                    if (showNextPromo()) return;
+                }
                 let nextIndex = priorityIndex >= 0
                     ? priorityIndex
                     : findAvailableIndex(currentIndex, direction);
@@ -365,7 +383,7 @@
                     ? nextIndex <= currentIndex
                     : nextIndex >= currentIndex);
                 if (wrapped) failedThisCycle.clear();
-                showPhoto(nextIndex);
+                showPhoto(nextIndex, autoplay);
             }
 
             function updatePlaybackButton() {
@@ -434,6 +452,99 @@
                 return Array.from(unique.values()).sort((left, right) => left.id - right.id);
             }
 
+            function normalizePromos(items) {
+                const unique = new Map();
+                for (const promo of items) {
+                    if (!promo || !Number.isSafeInteger(promo.id) || promo.id <= 0 ||
+                        typeof promo.type !== "string" || typeof promo.url !== "string" ||
+                        promo.url.length === 0 || !Number.isSafeInteger(promo.order)) continue;
+                    if (!unique.has(promo.id)) unique.set(promo.id, promo);
+                }
+                return Array.from(unique.values())
+                    .sort((left, right) => left.order - right.order || left.type.localeCompare(right.type))
+                    .slice(0, 3);
+            }
+
+            async function fetchPromos() {
+                if (!root.dataset.promosUrl) return [];
+                const response = await fetch(root.dataset.promosUrl, {
+                    method: "GET",
+                    headers: { "Accept": "application/json" },
+                    cache: "no-store",
+                    credentials: "same-origin",
+                });
+                if (!response.ok) throw new Error("promos");
+                const payload = await response.json();
+                if (!payload || !Array.isArray(payload.promos)) throw new Error("promos");
+                return normalizePromos(payload.promos);
+            }
+
+            async function refreshPromos() {
+                try {
+                    const snapshot = await fetchPromos();
+                    promos = snapshot;
+                    failedPromoIds.clear();
+                    if (promos.length === 0) {
+                        nextPromoIndex = 0;
+                    } else {
+                        nextPromoIndex %= promos.length;
+                    }
+                } catch (_) {
+                    // Las promos son opcionales: conservar el último catálogo funcional.
+                }
+            }
+
+            function promoIsDue() {
+                return promos.length > 0 && validPhotoCount() >= 4 &&
+                    photosSincePromo >= PROMO_EVERY_N_PHOTOS;
+            }
+
+            function showNextPromo() {
+                if (!promoIsDue()) return false;
+                let promo = null;
+                for (let step = 0; step < promos.length; step += 1) {
+                    const index = (nextPromoIndex + step) % promos.length;
+                    if (!failedPromoIds.has(promos[index].id)) {
+                        promo = promos[index];
+                        nextPromoIndex = (index + 1) % promos.length;
+                        break;
+                    }
+                }
+                if (!promo) {
+                    photosSincePromo = 0;
+                    return false;
+                }
+
+                clearAutoplay();
+                preloadRequest += 1;
+                if (preloader) {
+                    preloader.onload = null;
+                    preloader.onerror = null;
+                    preloader = null;
+                }
+                const request = ++imageRequest;
+                currentSlideKind = "promo";
+                root.dataset.currentSlideKind = "promo";
+                delete root.dataset.currentPhotoId;
+                image.classList.remove("is-visible");
+                image.alt = "Promoción de EventPhotos";
+                image.onload = () => {
+                    if (request !== imageRequest) return;
+                    photosSincePromo = 0;
+                    image.classList.add("is-visible");
+                    setState(paused ? STATES.PAUSED : STATES.PLAYING);
+                    scheduleAutoplay();
+                    showControls(true);
+                };
+                image.onerror = () => {
+                    if (request !== imageRequest) return;
+                    failedPromoIds.add(promo.id);
+                    showNextPromo() || move(1, true);
+                };
+                image.src = promo.url;
+                return true;
+            }
+
             async function fetchPhotoPages(afterId = null) {
                 const collected = [];
                 let cursor = afterId;
@@ -500,7 +611,7 @@
                 if (currentIndex < 0 || root.dataset.state === STATES.ERROR_RECOVERABLE) {
                     const nextIndex = takePriorityIndex();
                     if (nextIndex >= 0) {
-                        showPhoto(nextIndex);
+                        showPhoto(nextIndex, true);
                         startedPhoto = true;
                     }
                 } else if (!paused && root.dataset.state === STATES.PLAYING && autoplayTimer === null) {
@@ -633,6 +744,7 @@
                 }
                 requestInFlight = true;
                 let nextResyncDelay = RESYNC_INTERVAL_MS;
+                refreshPromos();
                 try {
                     const snapshot = await fetchPhotoPages();
                     applySnapshot(snapshot);
@@ -676,8 +788,9 @@
                 if (photos.length === 0) {
                     setState(STATES.EMPTY, "Esperando nuevas fotos");
                 } else {
-                    showPhoto(0);
+                    showPhoto(0, true);
                 }
+                refreshPromos();
                 startLiveSchedulers();
             }
 

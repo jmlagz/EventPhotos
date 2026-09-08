@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 import io
 import uuid
@@ -50,6 +51,7 @@ from .models import (
     Evento,
     Mesa,
     Foto,
+    SlideshowPromo,
     UploadIntent,
     InvitacionAnfitrion,
     InvitacionUsuario,
@@ -63,6 +65,9 @@ from .r2 import (
     eliminar_objeto,
     obtener_objeto,
 )
+
+
+logger = logging.getLogger(__name__)
 from .observability import log_operation
 from .upload_quota import reservas_upload as _reservas_upload
 
@@ -1622,6 +1627,33 @@ def slideshow_photos(request, slug):
             "has_more": has_more,
         }
     )
+
+
+@require_GET
+def slideshow_promos(request, slug):
+    _evento_slideshow_disponible(slug)
+    promos = SlideshowPromo.objects.filter(activa=True).order_by("orden", "tipo")
+    serialized = []
+
+    for promo in promos:
+        try:
+            url = generar_url_lectura(promo.imagen_key)
+        except Exception:
+            logger.error(
+                "slideshow promo signing failed",
+                extra={"promo_id": promo.pk, "promo_tipo": promo.tipo},
+            )
+            continue
+        serialized.append(
+            {
+                "id": promo.pk,
+                "type": promo.tipo,
+                "url": url,
+                "order": promo.orden,
+            }
+        )
+
+    return _slideshow_json({"promos": serialized})
 
 def album_publico(request, slug):
     evento = get_object_or_404(
