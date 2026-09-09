@@ -62,39 +62,7 @@ body {
     margin: 42px auto 70px;
 }
 
-.hero {
-    color: #fff;
-    text-align: center;
-    padding: 34px 24px 32px;
-    border-radius: 28px 28px 0 0;
-    background: linear-gradient(135deg, var(--primary), var(--primary-2));
-}
-
-.camera-icon {
-    width: 74px;
-    height: 74px;
-    margin: 0 auto 16px;
-    display: grid;
-    place-items: center;
-    border-radius: 23px;
-    background: rgba(255,255,255,.14);
-    border: 1px solid rgba(255,255,255,.25);
-    font-size: 37px;
-}
-
-.hero h1 {
-    margin: 0;
-    font-size: clamp(30px, 6vw, 42px);
-    line-height: 1.05;
-    letter-spacing: -.8px;
-}
-
-.hero p {
-    margin: 10px 0 0;
-    font-size: 17px;
-    font-weight: 600;
-    opacity: .92;
-}
+{% include "eventos/_mesa_identidad_css.html" %}
 
 .card {
     background: var(--card);
@@ -122,10 +90,6 @@ button,
     .page {
         width: min(100% - 20px, 720px);
         margin-top: 22px;
-    }
-    .hero {
-        padding: 28px 18px 25px;
-        border-radius: 22px 22px 0 0;
     }
     .card {
         padding: 24px 18px;
@@ -301,11 +265,7 @@ button,
 </header>
 
 <main class="page">
-    <section class="hero">
-        <div class="camera-icon">📸</div>
-        <h1>{{ evento.nombre }}</h1>
-        <p>{{ mesa.etiqueta }}</p>
-    </section>
+    {% include "eventos/_mesa_identidad_hero.html" %}
 
     <section class="card upload-card">
         <h2 class="upload-title">Comparte tus fotos</h2>

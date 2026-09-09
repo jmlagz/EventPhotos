@@ -1,0 +1,26 @@
+<section class="hero{% if imagen_portada_url %} hero-con-portada{% endif %}">
+    {% if imagen_portada_url %}
+        <img
+            class="hero-portada"
+            src="{{ imagen_portada_url }}"
+            alt="Portada de {{ evento.nombre }}"
+        >
+    {% endif %}
+
+    <div class="hero-contenido">
+        {% if logo_url %}
+            <img
+                class="hero-logo"
+                src="{{ logo_url }}"
+                alt="Logo de {{ evento.nombre }}"
+            >
+        {% else %}
+            <div class="hero-icon" aria-hidden="true">
+                📸
+            </div>
+        {% endif %}
+
+        <h1>{{ evento.nombre }}</h1>
+        <p class="hero-mesa">{{ mesa.etiqueta }}</p>
+    </div>
+</section>

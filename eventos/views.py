@@ -327,16 +327,7 @@ def logout_anfitrion(request):
     logout(request)
     return redirect("login_anfitrion")
 
-def evento_publico(request, slug):
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-        estado__in=[
-            Evento.Estado.ACTIVE,
-            Evento.Estado.CLOSED,
-        ],
-    )
-
+def _contexto_identidad_visual(evento):
     imagen_portada_url = None
 
     if evento.imagen_portada_key:
@@ -351,13 +342,28 @@ def evento_publico(request, slug):
             evento.logo_key
         )
 
+    return {
+        "imagen_portada_url": imagen_portada_url,
+        "logo_url": logo_url,
+    }
+
+
+def evento_publico(request, slug):
+    evento = get_object_or_404(
+        Evento,
+        slug=slug,
+        estado__in=[
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        ],
+    )
+
     return render(
         request,
         "eventos/evento_publico.html",
         {
             "evento": evento,
-            "imagen_portada_url": imagen_portada_url,
-            "logo_url": logo_url,
+            **_contexto_identidad_visual(evento),
         },
     )
 
@@ -448,6 +454,7 @@ def mesa_publica(request, slug, token):
                 "evento": evento,
                 "mesa": mesa,
                 "errores": errores,
+                **_contexto_identidad_visual(evento),
             },
         )
 
@@ -458,6 +465,7 @@ def mesa_publica(request, slug, token):
             "evento": evento,
             "mesa": mesa,
             "errores": [],
+            **_contexto_identidad_visual(evento),
         },
     )
 
@@ -509,6 +517,7 @@ def subir_fotos(request, slug, token):
         {
             "evento": evento,
             "mesa": mesa,
+            **_contexto_identidad_visual(evento),
         },
     )
 
@@ -1692,28 +1701,13 @@ def album_publico(request, slug):
             }
         )
 
-    imagen_portada_url = None
-
-    if evento.imagen_portada_key:
-        imagen_portada_url = generar_url_lectura(
-            evento.imagen_portada_key
-        )
-
-    logo_url = None
-
-    if evento.logo_key:
-        logo_url = generar_url_lectura(
-            evento.logo_key
-        )
-
     return render(
         request,
         "eventos/album_publico.html",
         {
             "evento": evento,
             "fotos": fotos_album,
-            "imagen_portada_url": imagen_portada_url,
-            "logo_url": logo_url,
+            **_contexto_identidad_visual(evento),
         },
     )
 
@@ -2460,20 +2454,6 @@ def dashboard_evento(request, slug):
         * 100
     )
 
-    imagen_portada_url = None
-
-    if evento.imagen_portada_key:
-        imagen_portada_url = generar_url_lectura(
-            evento.imagen_portada_key
-        )
-
-    logo_url = None
-
-    if evento.logo_key:
-        logo_url = generar_url_lectura(
-            evento.logo_key
-        )
-
     return render(
         request,
         "eventos/dashboard_evento.html",
@@ -2485,8 +2465,7 @@ def dashboard_evento(request, slug):
             "porcentaje_almacenamiento": porcentaje_almacenamiento,
             "max_fotos": MAX_FOTOS_POR_EVENTO,
             "max_almacenamiento": MAX_STORAGE_POR_EVENTO,
-            "imagen_portada_url": imagen_portada_url,
-            "logo_url": logo_url,
+            **_contexto_identidad_visual(evento),
             "temporal_form": temporal_form,
             "ciclo_temporal": contexto_ciclo_temporal(evento),
         },

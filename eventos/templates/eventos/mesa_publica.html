@@ -133,59 +133,7 @@
             box-shadow: var(--shadow);
         }
 
-        .hero {
-            padding: 42px 28px 34px;
-
-            text-align: center;
-
-            color: white;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #635bff 0%,
-                    #7c5cff 55%,
-                    #8b5cf6 100%
-                );
-        }
-
-        .icono {
-            width: 72px;
-            height: 72px;
-
-            margin: 0 auto 18px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 22px;
-
-            font-size: 36px;
-
-            background: rgba(255, 255, 255, 0.16);
-
-            border: 1px solid rgba(255, 255, 255, 0.18);
-
-            backdrop-filter: blur(10px);
-        }
-
-        .hero h1 {
-            margin: 0;
-
-            font-size:
-                clamp(27px, 6vw, 38px);
-
-            line-height: 1.15;
-        }
-
-        .mesa {
-            margin-top: 8px;
-
-            font-size: 17px;
-
-            opacity: 0.9;
-        }
+        {% include "eventos/_mesa_identidad_css.html" %}
 
         .contenido {
             padding: 30px;
@@ -458,10 +406,6 @@
                 padding: 24px 14px 20px;
             }
 
-            .hero {
-                padding: 34px 20px 28px;
-            }
-
             .contenido {
                 padding: 24px 18px;
             }
@@ -503,21 +447,7 @@
 
         <section class="tarjeta">
 
-            <div class="hero">
-
-                <div class="icono">
-                    📸
-                </div>
-
-                <h1>
-                    {{ evento.nombre }}
-                </h1>
-
-                <div class="mesa">
-                    {{ mesa.etiqueta }}
-                </div>
-
-            </div>
+            {% include "eventos/_mesa_identidad_hero.html" %}
 
 
             <div class="contenido">
