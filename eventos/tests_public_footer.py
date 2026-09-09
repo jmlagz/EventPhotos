@@ -101,6 +101,40 @@ class PublicFooterBrandingTests(TestCase):
             count=2,
         )
 
+    def test_dashboard_surfaces_render_new_footer(self):
+        admin_username = "footer-admin@example.com"
+        admin = User.objects.create_superuser(
+            username=admin_username,
+            password="test-password",
+        )
+        self.client.force_login(admin)
+
+        urls = (
+            reverse("dashboard"),
+            reverse("dashboard_evento", args=[self.event.slug]),
+            reverse("mesas_dashboard", args=[self.event.slug]),
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assert_new_footer(response)
+                self.assertContains(response, admin_username)
+
+    def test_dashboard_authentication_redirect_is_unchanged(self):
+        urls = (
+            reverse("dashboard"),
+            reverse("dashboard_evento", args=[self.event.slug]),
+            reverse("mesas_dashboard", args=[self.event.slug]),
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn(reverse("login_anfitrion"), response.url)
+
     def test_related_legacy_public_templates_use_new_footer(self):
         context = {"evento": self.event, "mesa": self.table}
 
