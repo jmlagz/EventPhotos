@@ -110,7 +110,7 @@
                                     color: #1f2937;
                                 "
                             >
-                                ¡Has sido invitado!
+                                Fuiste asignado como anfitrión
                             </h1>
 
                             <p
@@ -132,9 +132,9 @@
                                     color: #4b5563;
                                 "
                             >
-                                Se ha creado una cuenta para ti en
-                                <strong>EventPhotos</strong> como anfitrión
-                                de un evento.
+                                Ahora eres anfitrión en
+                                <strong>EventPhotos</strong> del siguiente
+                                evento:
                             </p>
 
 
@@ -239,7 +239,7 @@
                                     <td align="center">
 
                                         <a
-                                            href="{{ enlace_activacion }}"
+                                            href="{{ enlace_acceso }}"
                                             style="
                                                 display: inline-block;
                                                 padding: 14px 26px;
@@ -251,7 +251,11 @@
                                                 border-radius: 10px;
                                             "
                                         >
-                                            Activar mi cuenta
+                                            {% if requiere_activacion %}
+                                                Activar mi cuenta
+                                            {% else %}
+                                                Entrar a EventPhotos
+                                            {% endif %}
                                         </a>
 
                                     </td>
@@ -259,18 +263,34 @@
                             </table>
 
 
-                            <p
-                                style="
-                                    margin: 26px 0 0;
-                                    text-align: center;
-                                    font-size: 13px;
-                                    line-height: 1.5;
-                                    color: #6b7280;
-                                "
-                            >
-                                Este enlace es válido durante
-                                <strong>3 días</strong>.
-                            </p>
+                            {% if requiere_activacion %}
+                                <p
+                                    style="
+                                        margin: 26px 0 0;
+                                        text-align: center;
+                                        font-size: 13px;
+                                        line-height: 1.5;
+                                        color: #6b7280;
+                                    "
+                                >
+                                    Activa tu cuenta y crea tu contraseña.
+                                    Este enlace es válido durante
+                                    <strong>3 días</strong>.
+                                </p>
+                            {% else %}
+                                <p
+                                    style="
+                                        margin: 26px 0 0;
+                                        text-align: center;
+                                        font-size: 13px;
+                                        line-height: 1.5;
+                                        color: #6b7280;
+                                    "
+                                >
+                                    Inicia sesión y abre el evento desde tu
+                                    dashboard.
+                                </p>
+                            {% endif %}
 
 
                             <!-- FALLBACK LINK -->
@@ -303,13 +323,13 @@
                                     "
                                 >
                                     <a
-                                        href="{{ enlace_activacion }}"
+                                        href="{{ enlace_acceso }}"
                                         style="
                                             color: #635bff;
                                             text-decoration: none;
                                         "
                                     >
-                                        {{ enlace_activacion }}
+                                        {{ enlace_acceso }}
                                     </a>
                                 </p>
 

@@ -150,6 +150,12 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/anfitriones/<int:user_id>/quitar/",
+        views.desasignar_anfitrion_existente,
+        name="desasignar_anfitrion_existente",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/activar/",
         views.activar_evento,
         name="activar_evento",

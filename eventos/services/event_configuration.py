@@ -2,8 +2,12 @@ from datetime import datetime, time, timedelta, timezone as datetime_timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.relativedelta import relativedelta
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
+from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -129,8 +133,79 @@ def crear_evento_configurable(
     return evento
 
 
-def asignar_anfitrion(evento, usuario):
+def _enviar_notificacion_asignacion(
+    evento,
+    usuario,
+    *,
+    enlace_acceso,
+    requiere_activacion,
+):
+    nombre = usuario.first_name or usuario.get_username()
+    if requiere_activacion:
+        instrucciones = (
+            "Activa tu cuenta y crea tu contraseña usando este enlace:"
+        )
+    else:
+        instrucciones = "Inicia sesión para entrar al dashboard:"
+
+    mensaje_texto = (
+        f"Hola {nombre},\n\n"
+        f"Fuiste asignado como anfitrión del evento {evento.nombre} "
+        "en EventPhotos.\n\n"
+        f"Usuario: {usuario.email or usuario.get_username()}\n\n"
+        f"{instrucciones}\n\n"
+        f"{enlace_acceso}\n\n"
+        "EventPhotos"
+    )
+    mensaje_html = render_to_string(
+        "eventos/invitacion_anfitrion.html",
+        {
+            "usuario": usuario,
+            "evento": evento,
+            "enlace_acceso": enlace_acceso,
+            "requiere_activacion": requiere_activacion,
+        },
+    )
+    correo = EmailMultiAlternatives(
+        subject=f"Fuiste asignado como anfitrión de {evento.nombre}",
+        body=mensaje_texto,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[usuario.email or usuario.get_username()],
+    )
+    correo.attach_alternative(mensaje_html, "text/html")
+    correo.send()
+
+
+@transaction.atomic
+def asignar_anfitrion(
+    evento,
+    usuario,
+    *,
+    enlace_acceso=None,
+    requiere_activacion=False,
+):
+    Evento.objects.select_for_update().only("pk").get(pk=evento.pk)
+    if evento.anfitriones.filter(pk=usuario.pk).exists():
+        return False
+
     evento.anfitriones.add(usuario)
+    _enviar_notificacion_asignacion(
+        evento,
+        usuario,
+        enlace_acceso=enlace_acceso or reverse("login_anfitrion"),
+        requiere_activacion=requiere_activacion,
+    )
+    return True
+
+
+@transaction.atomic
+def desasignar_anfitrion(evento, usuario):
+    Evento.objects.select_for_update().only("pk").get(pk=evento.pk)
+    if not evento.anfitriones.filter(pk=usuario.pk).exists():
+        return False
+
+    evento.anfitriones.remove(usuario)
+    return True
 
 
 def _temporalidad_coherente(evento):

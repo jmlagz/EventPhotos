@@ -84,6 +84,7 @@ from .services.event_configuration import (
     actualizar_evento_configurable,
     asignar_anfitrion,
     crear_evento_configurable,
+    desasignar_anfitrion,
     evaluar_checklist,
     validar_activacion,
 )
@@ -2271,15 +2272,6 @@ def crear_usuario(request):
             eventos = form.cleaned_data["eventos"]
 
             # -----------------------------------------
-            # ANFITRIÓN
-            # -----------------------------------------
-
-            if rol == UsuarioForm.ROL_ANFITRION:
-
-                for evento in eventos:
-                    evento.anfitriones.add(usuario)
-
-            # -----------------------------------------
             # INVITACIÓN DE ACTIVACIÓN
             # -----------------------------------------
 
@@ -2329,64 +2321,26 @@ def crear_usuario(request):
                     "Activa tu cuenta de administrador de EventPhotos"
                 )
 
-                contexto_mensaje = {
-                    "usuario": usuario,
-                    "enlace_activacion": enlace_activacion,
-                }
+                correo = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=mensaje_texto,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[usuario.email],
+                )
+                correo.attach_alternative(
+                    mensaje_html,
+                    "text/html",
+                )
+                correo.send()
 
             else:
-
-                nombres_eventos = "\n".join(
-                    f"- {evento.nombre}"
-                    for evento in eventos
-                )
-
-                mensaje_texto = (
-                    f"Hola {usuario.first_name},\n\n"
-                    "Se ha creado una cuenta para ti en "
-                    "EventPhotos como anfitrión.\n\n"
-                    "Eventos asignados:\n"
-                    f"{nombres_eventos}\n\n"
-                    f"Usuario: {usuario.email}\n\n"
-                    "Tu correo electrónico también será tu "
-                    "nombre de usuario para iniciar sesión.\n\n"
-                    "Puedes activar tu cuenta y crear tu "
-                    "contraseña utilizando el siguiente enlace:\n\n"
-                    f"{enlace_activacion}\n\n"
-                    "Este enlace tiene una vigencia de 3 días.\n\n"
-                    "EventPhotos"
-                )
-
-                mensaje_html = render_to_string(
-                    "eventos/invitacion_anfitrion.html",
-                    {
-                        "usuario": usuario,
-                        "eventos": eventos,
-                        "enlace_activacion": enlace_activacion,
-                    },
-                )
-
-                asunto = "Activa tu cuenta de EventPhotos"
-
-                contexto_mensaje = {
-                    "usuario": usuario,
-                    "eventos": eventos,
-                    "enlace_activacion": enlace_activacion,
-                }
-
-            correo = EmailMultiAlternatives(
-                subject=asunto,
-                body=mensaje_texto,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[usuario.email],
-            )
-
-            correo.attach_alternative(
-                mensaje_html,
-                "text/html",
-            )
-
-            correo.send()
+                for evento in eventos:
+                    asignar_anfitrion(
+                        evento,
+                        usuario,
+                        enlace_acceso=enlace_activacion,
+                        requiere_activacion=True,
+                    )
 
             messages.success(
                 request,
@@ -2538,6 +2492,7 @@ def editar_evento(request, slug):
 
 
 @login_required
+@require_POST
 def asignar_anfitrion_existente(request, slug):
     if not request.user.is_superuser:
         return HttpResponse(
@@ -2546,16 +2501,38 @@ def asignar_anfitrion_existente(request, slug):
         )
 
     evento = get_object_or_404(Evento, slug=slug)
-    if request.method != "POST":
-        return redirect("dashboard_evento", slug=evento.slug)
-
     form = AsignarAnfitrionForm(request.POST, evento=evento)
     if form.is_valid():
-        asignar_anfitrion(evento, form.cleaned_data["usuario"])
-        messages.success(request, "Anfitrión asignado correctamente.")
+        asignado = asignar_anfitrion(
+            evento,
+            form.cleaned_data["usuario"],
+            enlace_acceso=request.build_absolute_uri(
+                reverse("login_anfitrion")
+            ),
+        )
+        if asignado:
+            messages.success(request, "Anfitrión asignado correctamente.")
+        else:
+            messages.info(request, "El usuario ya era anfitrión del evento.")
     else:
         messages.error(request, "Selecciona un usuario disponible.")
 
+    return redirect("dashboard_evento", slug=evento.slug)
+
+
+@login_required
+@require_POST
+def desasignar_anfitrion_existente(request, slug, user_id):
+    if not request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para desasignar anfitriones.",
+            status=403,
+        )
+
+    evento = get_object_or_404(Evento, slug=slug)
+    usuario = get_object_or_404(evento.anfitriones, pk=user_id)
+    desasignar_anfitrion(evento, usuario)
+    messages.success(request, "Anfitrión desasignado correctamente.")
     return redirect("dashboard_evento", slug=evento.slug)
 
 @login_required

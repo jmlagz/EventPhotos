@@ -421,7 +421,39 @@
     .checklist-state-complete { color: var(--ep-color-success); }
     .checklist-state-review { color: var(--ep-color-warning); }
     .checklist-item p { margin: 6px 0 0; color: var(--color-text-secondary); }
-    .host-list { padding-left: 20px; }
+    .host-list {
+        display: grid;
+        gap: 10px;
+        padding: 0;
+        list-style: none;
+    }
+    .host-list li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+    }
+    .host-remove-button {
+        border: 1px solid #dc2626;
+        border-radius: var(--radius-md);
+        padding: 8px 12px;
+        background: transparent;
+        color: #b91c1c;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .hostless-alert {
+        margin: 0 0 18px;
+        padding: 14px 16px;
+        border: 1px solid var(--ep-color-warning);
+        border-radius: var(--radius-md);
+        background: #fffbeb;
+        color: #78350f;
+    }
     .host-assignment { display: flex; gap: 10px; flex-wrap: wrap; }
     .host-assignment select { min-width: 260px; padding: 10px; }
 
@@ -429,6 +461,9 @@
         .checklist-grid { grid-template-columns: 1fr; }
         .host-assignment select,
         .host-assignment .button { width: 100%; }
+        .host-list li { align-items: flex-start; flex-direction: column; }
+        .host-remove-form,
+        .host-remove-button { width: 100%; }
     }
 
 </style>
@@ -958,6 +993,13 @@
          ANFITRIONES
          ========================= -->
 
+    {% if not anfitriones %}
+        <div class="hostless-alert" role="status">
+            <strong>Este evento no tiene anfitriones asignados.</strong>
+            Sólo administración global puede gestionarlo hasta que se asigne uno.
+        </div>
+    {% endif %}
+
     {% if request.user.is_superuser %}
 
         <section class="card section">
@@ -975,8 +1017,24 @@
                 <ul class="host-list">
                     {% for anfitrion in anfitriones %}
                         <li>
-                            {{ anfitrion.get_full_name|default:anfitrion.username }}
-                            — {{ anfitrion.email }}
+                            <span>
+                                {{ anfitrion.get_full_name|default:anfitrion.username }}
+                                — {{ anfitrion.email }}
+                            </span>
+                            <form
+                                method="post"
+                                action="{% url 'desasignar_anfitrion_existente' evento.slug anfitrion.pk %}"
+                                class="host-remove-form"
+                                onsubmit="return confirm('{% if forloop.first and forloop.last %}Este es el último anfitrión asignado. Si lo quitas, el evento quedará sin acceso de anfitrión y sólo administración podrá gestionarlo. ¿Deseas continuar?{% else %}¿Deseas quitar a este anfitrión del evento?{% endif %}');"
+                            >
+                                {% csrf_token %}
+                                <button
+                                    type="submit"
+                                    class="host-remove-button"
+                                >
+                                    Quitar
+                                </button>
+                            </form>
                         </li>
                     {% endfor %}
                 </ul>
