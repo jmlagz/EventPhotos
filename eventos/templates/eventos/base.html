@@ -18,7 +18,7 @@
 
     <meta
         name="theme-color"
-        content="#635bff"
+        content="#073B4C"
     >
 
     <link
@@ -43,35 +43,6 @@
     </title>
 
     <style>
-
-        :root {
-            --color-primary: #635bff;
-            --color-primary-dark: #5148e8;
-            --color-primary-light: #eeedff;
-
-            --color-background: #f6f7fb;
-            --color-surface: #ffffff;
-
-            --color-text: #1f2937;
-            --color-text-secondary: #6b7280;
-            --color-text-muted: #9ca3af;
-
-            --color-border: #e5e7eb;
-
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 20px;
-
-            --shadow-sm:
-                0 2px 8px rgba(15, 23, 42, 0.05);
-
-            --shadow-md:
-                0 6px 20px rgba(15, 23, 42, 0.08);
-
-            --transition:
-                0.2s ease;
-        }
 
         * {
             box-sizing: border-box;
@@ -102,6 +73,12 @@
 
         a {
             color: inherit;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--color-focus);
+            outline-offset: 3px;
+            box-shadow: var(--shadow-focus);
         }
 
         button,
@@ -166,16 +143,16 @@
                 linear-gradient(
                     135deg,
                     var(--color-primary),
-                    #8b5cf6
+                    var(--color-accent)
                 );
 
-            color: white;
+            color: var(--color-text);
 
             font-size: 18px;
             font-weight: 700;
 
             box-shadow:
-                0 4px 10px rgba(99, 91, 255, 0.25);
+                0 4px 10px rgba(7, 59, 76, 0.16);
         }
 
         .brand-name {
@@ -253,7 +230,7 @@
 
             gap: 8px;
 
-            min-height: 42px;
+            min-height: 44px;
 
             padding: 10px 16px;
 
@@ -261,7 +238,7 @@
             border-radius: var(--radius-md);
 
             background: var(--color-primary);
-            color: white;
+            color: var(--color-text);
 
             font-weight: 600;
             text-decoration: none;
@@ -278,11 +255,21 @@
             background: var(--color-primary-dark);
 
             box-shadow:
-                0 5px 14px rgba(99, 91, 255, 0.22);
+                0 5px 14px rgba(7, 59, 76, 0.16);
         }
 
         .button:active {
             transform: translateY(1px);
+        }
+
+        .button:disabled,
+        .button-disabled {
+            border-color: var(--color-border);
+            background: var(--color-border);
+            color: var(--color-text-secondary);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
         }
 
         .button-secondary {
@@ -293,9 +280,54 @@
         }
 
         .button-secondary:hover {
-            background: #f9fafb;
+            background: var(--color-surface-muted);
             color: var(--color-text);
             box-shadow: var(--shadow-sm);
+        }
+
+        .button-danger {
+            background: var(--color-danger);
+            color: var(--color-text);
+        }
+
+        .button-danger:hover {
+            background: var(--color-danger-dark);
+            color: var(--color-surface);
+        }
+
+        .button-success {
+            background: var(--color-primary);
+            color: var(--color-text);
+        }
+
+        .app-messages {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            padding: 13px 15px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-info-soft);
+            color: var(--color-text);
+        }
+
+        .alert-success {
+            border-color: var(--color-success);
+            background: var(--color-success-soft);
+        }
+
+        .alert-warning {
+            border-color: var(--color-warning);
+            background: var(--color-warning-soft);
+            color: var(--color-warning-text);
+        }
+
+        .alert-error {
+            border-color: var(--color-danger);
+            background: var(--color-danger-soft);
         }
 
         /* =========================
@@ -378,6 +410,19 @@
 
 
         <main class="app-main">
+
+            {% if messages %}
+                <div class="app-messages" aria-live="polite">
+                    {% for message in messages %}
+                        <div
+                            class="alert alert-{{ message.tags|default:'info' }}"
+                            role="status"
+                        >
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
 
             {% block content %}
             {% endblock %}

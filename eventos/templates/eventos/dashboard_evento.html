@@ -118,7 +118,7 @@
 
         margin-top: 12px;
 
-        background: #e5e7eb;
+        background: var(--color-border);
         border-radius: 999px;
 
         overflow: hidden;
@@ -134,7 +134,7 @@
             linear-gradient(
                 90deg,
                 var(--color-primary),
-                #8b5cf6
+                var(--color-accent)
             );
 
         border-radius: 999px;
@@ -202,7 +202,7 @@
 
         margin-bottom: 12px;
 
-        border: 2px dashed #d1d5db;
+        border: 2px dashed var(--color-border);
         border-radius: var(--radius-md);
 
         color: var(--color-text-muted);
@@ -226,14 +226,14 @@
     }
 
     .button-disabled {
-        background: #e5e7eb;
+        background: var(--color-border);
         color: var(--color-text-secondary);
         cursor: not-allowed;
         box-shadow: none;
     }
 
     .button-disabled:hover {
-        background: #e5e7eb;
+        background: var(--color-border);
         color: var(--color-text-secondary);
         box-shadow: none;
         transform: none;
@@ -275,128 +275,6 @@
         }
 
     }
-    .download-all-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-
-        margin-top: 8px;
-        padding: 11px 18px;
-
-        background: #111827;
-        color: white;
-
-        border-radius: 10px;
-        text-decoration: none;
-
-        font-size: 14px;
-        font-weight: 600;
-
-        transition:
-            transform 0.15s ease,
-            background 0.15s ease;
-    }
-
-    .download-all-button:hover {
-        background: #1f2937;
-        transform: translateY(-1px);
-    }
-
-    .reopen-event-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-
-        padding: 11px 18px;
-
-        background: #2563eb;
-        color: white;
-
-        border: none;
-        border-radius: 10px;
-
-        font-size: 14px;
-        font-weight: 600;
-
-        cursor: pointer;
-
-        transition:
-            transform 0.15s ease,
-            background 0.15s ease;
-    }
-
-    .reopen-event-button:hover {
-        background: #1d4ed8;
-        transform: translateY(-1px);
-    }
-
-    .activate-event-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-
-        padding: 11px 18px;
-
-        background: #16a34a;
-        color: white;
-
-        border: none;
-        border-radius: 10px;
-
-        font-size: 14px;
-        font-weight: 600;
-
-        cursor: pointer;
-
-        transition:
-            transform 0.15s ease,
-            background 0.15s ease;
-    }
-
-    .activate-event-button:hover {
-        background: #15803d;
-        transform: translateY(-1px);
-    }
-
-    .close-event-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-
-        padding: 11px 18px;
-
-        background: #dc2626;
-        color: white;
-
-        border: none;
-        border-radius: 10px;
-
-        font-size: 14px;
-        font-weight: 600;
-
-        cursor: pointer;
-
-        transition:
-            transform 0.15s ease,
-            background 0.15s ease;
-    }
-
-    .close-event-button:hover {
-        background: #b91c1c;
-        transform: translateY(-1px);
-    }
-
-    .activate-event-button:disabled {
-        background: var(--color-border);
-        color: var(--color-text-secondary);
-        cursor: not-allowed;
-        transform: none;
-    }
-
     .checklist-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -436,24 +314,6 @@
         border: 1px solid var(--color-border);
         border-radius: var(--radius-md);
     }
-    .host-remove-button {
-        border: 1px solid #dc2626;
-        border-radius: var(--radius-md);
-        padding: 8px 12px;
-        background: transparent;
-        color: #b91c1c;
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-    }
-    .hostless-alert {
-        margin: 0 0 18px;
-        padding: 14px 16px;
-        border: 1px solid var(--ep-color-warning);
-        border-radius: var(--radius-md);
-        background: #fffbeb;
-        color: #78350f;
-    }
     .host-assignment { display: flex; gap: 10px; flex-wrap: wrap; }
     .host-assignment select { min-width: 260px; padding: 10px; }
 
@@ -462,8 +322,159 @@
         .host-assignment select,
         .host-assignment .button { width: 100%; }
         .host-list li { align-items: flex-start; flex-direction: column; }
-        .host-remove-form,
-        .host-remove-button { width: 100%; }
+        .host-remove-form { width: 100%; }
+    }
+
+    /* Flujo visual guiado */
+    .dashboard-flow {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section {
+        scroll-margin-top: 92px;
+    }
+
+    .section-kicker {
+        margin: 0 0 6px;
+        color: var(--color-success);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .info-grid,
+    .temporal-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+        margin: 18px 0;
+    }
+
+    .info-item,
+    .temporal-item {
+        margin: 0;
+    }
+
+    .info-label,
+    .temporal-label {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+    }
+
+    .checklist-item {
+        display: block;
+        color: var(--color-text);
+        text-decoration: none;
+        transition:
+            border-color var(--transition),
+            box-shadow var(--transition),
+            transform var(--transition);
+    }
+
+    .checklist-item:hover,
+    .checklist-item:focus-visible {
+        border-color: var(--color-primary);
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-2px);
+    }
+
+    .checklist-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--color-surface-muted);
+        color: var(--color-text-secondary);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .checklist-state-complete,
+    .checklist-state-completo {
+        background: var(--color-success-soft);
+        color: var(--color-success);
+    }
+
+    .checklist-state-pendiente,
+    .checklist-state-review,
+    .checklist-state-revisar {
+        background: var(--color-warning-soft);
+        color: var(--color-warning-text);
+    }
+
+    .checklist-state-opcional {
+        background: var(--color-info-soft);
+        color: var(--color-text);
+    }
+
+    .state-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--color-info-soft);
+        color: var(--color-text);
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .state-badge-active { background: var(--color-success-soft); color: var(--color-success); }
+    .state-badge-draft { background: var(--color-warning-soft); color: var(--color-warning-text); }
+    .state-badge-closed,
+    .state-badge-archived { background: var(--color-surface-muted); color: var(--color-text-secondary); }
+
+    .hostless-alert {
+        margin-bottom: 20px;
+        border-color: var(--color-warning);
+        background: var(--color-warning-soft);
+        color: var(--color-warning-text);
+    }
+
+    .progress-container {
+        background: var(--color-border);
+    }
+
+    .progress-bar {
+        background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+    }
+
+    .preview-empty {
+        border-color: var(--color-border);
+    }
+
+    @media (max-width: 700px) {
+        .info-grid,
+        .temporal-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .checklist-item-header {
+            align-items: flex-start;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .section {
+            padding: 18px;
+        }
+
+        .section .buttons,
+        .section .buttons .button,
+        .section form > .button,
+        .host-remove-form .button {
+            width: 100%;
+        }
+
+        .event-header h1 {
+            overflow-wrap: anywhere;
+        }
     }
 
 </style>
@@ -509,119 +520,232 @@
 
     </div>
 
-    <div class="buttons" style="margin-bottom: 24px;">
-        <a class="button button-secondary" href="{% url 'editar_evento' evento.slug %}">
+    <div class="dashboard-flow">
+
+    <section
+        id="config-informacion"
+        class="card section"
+    >
+        <p class="section-kicker">1 · Configuración</p>
+        <h2>Información del evento</h2>
+        <p class="section-description">
+            Revisa los datos principales que verán tus invitados.
+        </p>
+        <div class="info-grid">
+            <p class="info-item">
+                <span class="info-label">Nombre</span>
+                <strong>{{ evento.nombre }}</strong>
+            </p>
+            <p class="info-item">
+                <span class="info-label">Tipo</span>
+                <strong>{{ evento.get_tipo_display }}</strong>
+            </p>
+            {% if evento.descripcion %}
+                <p class="info-item">
+                    <span class="info-label">Descripción</span>
+                    {{ evento.descripcion }}
+                </p>
+            {% endif %}
+            {% if evento.mensaje_bienvenida %}
+                <p class="info-item">
+                    <span class="info-label">Mensaje de bienvenida</span>
+                    {{ evento.mensaje_bienvenida }}
+                </p>
+            {% endif %}
+        </div>
+        <a
+            class="button button-secondary"
+            href="{% url 'editar_evento' evento.slug %}"
+        >
             ✏️ Editar información
         </a>
-    </div>
-
-    {% if evento.configuracion_version %}
-        <section class="card section">
-            <h2>✅ Checklist de configuración</h2>
-            <div class="checklist-grid">
-                {% for item in checklist.items %}
-                    <div class="checklist-item" data-checklist="{{ item.clave }}">
-                        <div class="checklist-item-header">
-                            <span>{{ item.titulo }}</span>
-                            <span class="checklist-state {% if item.estado == 'Completo' %}checklist-state-complete{% elif item.estado == 'Revisar' %}checklist-state-review{% endif %}">
-                                {{ item.estado }}
-                            </span>
-                        </div>
-                        <p>{{ item.detalle }}</p>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
-    {% endif %}
-
+    </section>
 
     <!-- =========================
-    ESTADÍSTICAS
-    ========================= -->
+         FECHA Y HORARIO
+         ========================= -->
 
-    <div class="stats-grid">
+    <section
+        id="config-fecha"
+        class="card section"
+    >
 
-        <a
-            href="{% url 'fotos_dashboard' slug=evento.slug %}"
-            class="card stat-card"
-            style="text-decoration: none; color: inherit;"
+        <p class="section-kicker">2 · Calendario</p>
+        <h2>Fecha y horario</h2>
+        <p class="section-description">
+            Ciclo temporal: consulta el horario local y las ventanas de carga
+            y disponibilidad.
+        </p>
+
+        {% if evento.configuracion_version is None %}
+        <form method="post" style="margin-top: 12px;">
+            {% csrf_token %}
+
+            {% if temporal_form.non_field_errors %}
+                <div class="form-errors">
+                    {{ temporal_form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <p>
+                {{ temporal_form.fin_planeado.label_tag }}
+                {{ temporal_form.fin_planeado }}
+                {% if temporal_form.fin_planeado.errors %}
+                    {{ temporal_form.fin_planeado.errors }}
+                {% endif %}
+            </p>
+
+            <p>
+                {{ temporal_form.timezone.label_tag }}
+                {{ temporal_form.timezone }}
+                <br>
+                <small>{{ temporal_form.timezone.help_text }}</small>
+                {% if temporal_form.timezone.errors %}
+                    {{ temporal_form.timezone.errors }}
+                {% endif %}
+            </p>
+
+            <button type="submit" class="button">
+                Guardar configuración temporal
+            </button>
+        </form>
+        {% else %}
+            <p>
+                La temporalidad del flujo guiado se modifica desde
+                <a href="{% url 'editar_evento' evento.slug %}">Editar información</a>.
+            </p>
+        {% endif %}
+
+        <div class="temporal-grid">
+            <p class="temporal-item">
+                <span class="temporal-label">Fin planeado</span>
+                <strong>{{ ciclo_temporal.fin_planeado }}</strong>
+            </p>
+            <p class="temporal-item">
+                <span class="temporal-label">Zona horaria</span>
+                <strong>{{ ciclo_temporal.timezone }}</strong>
+            </p>
+            <p class="temporal-item">
+                <span class="temporal-label">Carga disponible hasta</span>
+                <strong>{{ ciclo_temporal.upload_until }}</strong><br>
+                <small>{{ ciclo_temporal.estado_carga }}</small>
+            </p>
+            <p class="temporal-item">
+                <span class="temporal-label">Álbum disponible hasta</span>
+                <strong>{{ ciclo_temporal.available_until }}</strong><br>
+                <small>{{ ciclo_temporal.estado_album }}</small>
+            </p>
+        </div>
+
+    </section>
+
+    <!-- =========================
+         ANFITRIONES
+         ========================= -->
+
+    {% if not anfitriones %}
+        <div
+            class="alert alert-warning hostless-alert"
+            role="status"
+        >
+            <strong>Este evento no tiene anfitriones asignados.</strong>
+            Sólo administración global puede gestionarlo hasta que se asigne uno.
+        </div>
+    {% endif %}
+
+    {% if request.user.is_superuser %}
+
+        <section
+            id="config-anfitriones"
+            class="card section"
         >
 
-            <div class="stat-number">
-                {{ total_fotos }}
-            </div>
+            <p class="section-kicker">3 · Acceso</p>
+            <h2>
+                👥 Anfitriones
+            </h2>
 
-            <div class="stat-label">
-                Fotos
-            </div>
+            <p class="section-description">
+                Administra las personas que tienen acceso
+                a este evento.
+            </p>
 
-            <div
-                style="
-                    margin-top: 10px;
-                    color: var(--color-primary);
-                    font-size: 13px;
-                    font-weight: 600;
-                "
+            {% if anfitriones %}
+                <ul class="host-list">
+                    {% for anfitrion in anfitriones %}
+                        <li>
+                            <span>
+                                {{ anfitrion.get_full_name|default:anfitrion.username }}
+                                — {{ anfitrion.email }}
+                            </span>
+                            <form
+                                method="post"
+                                action="{% url 'desasignar_anfitrion_existente' evento.slug anfitrion.pk %}"
+                                class="host-remove-form"
+                                onsubmit="return confirm('{% if forloop.first and forloop.last %}Este es el último anfitrión asignado. Si lo quitas, el evento quedará sin acceso de anfitrión y sólo administración podrá gestionarlo. ¿Deseas continuar?{% else %}¿Deseas quitar a este anfitrión del evento?{% endif %}');"
+                            >
+                                {% csrf_token %}
+                                <button
+                                    type="submit"
+                                    class="button button-danger"
+                                >
+                                    Quitar
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No hay anfitriones asignados todavía.</p>
+            {% endif %}
+
+            <a
+                href="{% url 'crear_usuario' %}?evento={{ evento.slug }}"
+                class="button button-secondary"
             >
-                📷 Administrar fotos →
-            </div>
+                + Crear usuario
+            </a>
 
-        </a>
-
-
-        <div class="card stat-card">
-
-            <div class="stat-number">
-                {{ evento.mesas.count }}
-            </div>
-
-            <div class="stat-label">
-                Mesas
-            </div>
-
-        </div>
-
-
-        <div class="card stat-card">
-
-            <div class="stat-number">
-                {{ almacenamiento_usado|filesizeformat }}
-            </div>
-
-            <div class="stat-label">
-                Almacenamiento
-            </div>
-
-            <div class="progress-container">
-
-                <div
-                    class="progress-bar"
-                    style="--progress: {{ porcentaje_almacenamiento }}%;"
-                ></div>
-
-            </div>
-
-            <div
-                style="
-                    margin-top: 8px;
-                    color: var(--color-text-secondary);
-                    font-size: 13px;
-                "
+            <form
+                method="post"
+                action="{% url 'asignar_anfitrion_existente' evento.slug %}"
+                class="host-assignment"
+                style="margin-top: 14px;"
             >
-                {{ almacenamiento_usado|filesizeformat }}
-                /
-                {{ max_almacenamiento|filesizeformat }}
-            </div>
+                {% csrf_token %}
+                {{ asignar_anfitrion_form.usuario }}
+                <button type="submit" class="button">
+                    Asignar usuario existente
+                </button>
+            </form>
 
-        </div>
+        </section>
 
-    </div>
+    {% else %}
+
+        <section
+            id="config-anfitriones"
+            class="card section"
+        >
+            <p class="section-kicker">3 · Acceso</p>
+            <h2>👥 Anfitriones</h2>
+            <p class="section-description">
+                Administración global gestiona las personas con acceso al evento.
+            </p>
+        </section>
+
+    {% endif %}
 
         <!-- =========================
          MESAS Y QR
          ========================= -->
 
-        <section class="card section">
+        <section
+            id="config-mesas"
+            class="card section"
+        >
+
+            <p class="section-kicker">4 · Participación</p>
 
             <h2>
                 🪑 Mesas y códigos QR
@@ -657,7 +781,12 @@
          PERSONALIZACIÓN
          ========================= -->
 
-    <section class="card section">
+    <section
+        id="config-identidad"
+        class="card section"
+    >
+
+        <p class="section-kicker">5 · Identidad</p>
 
         <h2>
             🎨 Personalización
@@ -793,88 +922,50 @@
     </section>
 
 
-    <!-- =========================
-         EVENTO
-         ========================= -->
+    {% if evento.configuracion_version %}
+        <section
+            id="config-revision"
+            class="card section"
+        >
+            <p class="section-kicker">6 · Revisión</p>
+            <h2>Checklist de configuración</h2>
+            <p class="section-description">
+                Selecciona cualquier tarjeta para ir directamente a esa sección.
+            </p>
+            <div class="checklist-grid">
+                {% for item in checklist.items %}
+                    <a
+                        class="checklist-item"
+                        data-checklist="{{ item.clave }}"
+                        href="#config-{% if item.clave == 'informacion' %}informacion{% elif item.clave == 'temporalidad' %}fecha{% elif item.clave == 'anfitriones' %}anfitriones{% elif item.clave == 'mesas' %}mesas{% elif item.clave == 'identidad' %}identidad{% else %}activacion{% endif %}"
+                    >
+                        <div class="checklist-item-header">
+                            <span>{{ item.titulo }}</span>
+                            <span class="checklist-state checklist-state-{{ item.estado|lower }}">
+                                {% if item.estado == "Completo" %}✓{% elif item.estado == "Pendiente" %}○{% elif item.estado == "Opcional" %}+{% else %}!{% endif %}
+                                {{ item.estado }}
+                            </span>
+                        </div>
+                        <p>{{ item.detalle }}</p>
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
 
-    <section class="card section">
+    <section
+        id="config-activacion"
+        class="card section"
+    >
 
-        <h2>
-            ⚙️ Evento
-        </h2>
-
+        <p class="section-kicker">7 · Publicación</p>
+        <h2>Activación y acceso</h2>
         <p>
-            Estado:
-            <strong>
+            Estado actual:
+            <span class="state-badge state-badge-{{ evento.estado }}">
                 {{ evento.get_estado_display }}
-            </strong>
+            </span>
         </p>
-
-        <h3 style="margin-top: 24px;">
-            Ciclo temporal
-        </h3>
-
-        {% if evento.configuracion_version is None %}
-        <form method="post" style="margin-top: 12px;">
-            {% csrf_token %}
-
-            {% if temporal_form.non_field_errors %}
-                <div class="form-errors">
-                    {{ temporal_form.non_field_errors }}
-                </div>
-            {% endif %}
-
-            <p>
-                {{ temporal_form.fin_planeado.label_tag }}
-                {{ temporal_form.fin_planeado }}
-                {% if temporal_form.fin_planeado.errors %}
-                    {{ temporal_form.fin_planeado.errors }}
-                {% endif %}
-            </p>
-
-            <p>
-                {{ temporal_form.timezone.label_tag }}
-                {{ temporal_form.timezone }}
-                <br>
-                <small>{{ temporal_form.timezone.help_text }}</small>
-                {% if temporal_form.timezone.errors %}
-                    {{ temporal_form.timezone.errors }}
-                {% endif %}
-            </p>
-
-            <button type="submit" class="button">
-                Guardar configuración temporal
-            </button>
-        </form>
-        {% else %}
-            <p>
-                La temporalidad del flujo guiado se modifica desde
-                <a href="{% url 'editar_evento' evento.slug %}">Editar información</a>.
-            </p>
-        {% endif %}
-
-        <div style="margin-top: 18px;">
-            <p>
-                Fin planeado del evento:
-                <strong>{{ ciclo_temporal.fin_planeado }}</strong>
-            </p>
-            <p>
-                Zona horaria:
-                <strong>{{ ciclo_temporal.timezone }}</strong>
-            </p>
-            <p>
-                Carga de fotos disponible hasta:
-                <strong>{{ ciclo_temporal.upload_until }}</strong>
-                <br>
-                <small>{{ ciclo_temporal.estado_carga }}</small>
-            </p>
-            <p>
-                Álbum disponible hasta:
-                <strong>{{ ciclo_temporal.available_until }}</strong>
-                <br>
-                <small>{{ ciclo_temporal.estado_album }}</small>
-            </p>
-        </div>
 
         {% if evento.estado == "draft" %}
             <form
@@ -887,7 +978,7 @@
 
                 <button
                     type="submit"
-                    class="activate-event-button"
+                    class="button button-success"
                     {% if evento.configuracion_version and not checklist.listo %}disabled{% endif %}
                 >
                     🚀 Activar evento
@@ -910,7 +1001,7 @@
 
                 <button
                     type="submit"
-                    class="reopen-event-button"
+                    class="button button-secondary"
                 >
                     🔓 Reabrir evento
                 </button>
@@ -932,7 +1023,7 @@
 
                 <button
                     type="submit"
-                    class="close-event-button"
+                    class="button button-danger"
                 >
                     🔒 Cerrar evento
                 </button>
@@ -948,7 +1039,7 @@
             {% if evento.permite_album_publico %}
                 <a
                     href="{% url 'album_publico' slug=evento.slug %}"
-                    class="button"
+                    class="button button-secondary"
                     target="_blank"
                     rel="noopener"
                 >
@@ -969,7 +1060,7 @@
             {% if evento.permite_album_publico %}
                 <a
                     href="{% url 'slideshow' slug=evento.slug %}"
-                    class="button"
+                    class="button button-secondary"
                     target="_blank"
                     rel="noopener"
                 >
@@ -979,7 +1070,7 @@
 
             <a
                 href="{% url 'descargar_fotos_evento' evento.slug %}"
-                class="download-all-button"
+                class="button button-secondary"
             >
                 ⬇️ Descargar todas las fotos
             </a>
@@ -988,83 +1079,87 @@
 
     </section>
 
-
     <!-- =========================
-         ANFITRIONES
+         ESTADÍSTICAS
          ========================= -->
 
-    {% if not anfitriones %}
-        <div class="hostless-alert" role="status">
-            <strong>Este evento no tiene anfitriones asignados.</strong>
-            Sólo administración global puede gestionarlo hasta que se asigne uno.
+    <div class="stats-grid" aria-label="Resumen de uso del evento">
+
+        <a
+            href="{% url 'fotos_dashboard' slug=evento.slug %}"
+            class="card stat-card"
+            style="text-decoration: none; color: inherit;"
+        >
+
+            <div class="stat-number">
+                {{ total_fotos }}
+            </div>
+
+            <div class="stat-label">
+                Fotos
+            </div>
+
+            <div
+                style="
+                    margin-top: 10px;
+                    color: var(--color-primary);
+                    font-size: 13px;
+                    font-weight: 600;
+                "
+            >
+                📷 Administrar fotos →
+            </div>
+
+        </a>
+
+        <div class="card stat-card">
+
+            <div class="stat-number">
+                {{ evento.mesas.count }}
+            </div>
+
+            <div class="stat-label">
+                Mesas
+            </div>
+
         </div>
-    {% endif %}
 
-    {% if request.user.is_superuser %}
+        <div class="card stat-card">
 
-        <section class="card section">
+            <div class="stat-number">
+                {{ almacenamiento_usado|filesizeformat }}
+            </div>
 
-            <h2>
-                👥 Anfitriones
-            </h2>
+            <div class="stat-label">
+                Almacenamiento
+            </div>
 
-            <p class="section-description">
-                Administra las personas que tienen acceso
-                a este evento.
-            </p>
+            <div class="progress-container">
 
-            {% if anfitriones %}
-                <ul class="host-list">
-                    {% for anfitrion in anfitriones %}
-                        <li>
-                            <span>
-                                {{ anfitrion.get_full_name|default:anfitrion.username }}
-                                — {{ anfitrion.email }}
-                            </span>
-                            <form
-                                method="post"
-                                action="{% url 'desasignar_anfitrion_existente' evento.slug anfitrion.pk %}"
-                                class="host-remove-form"
-                                onsubmit="return confirm('{% if forloop.first and forloop.last %}Este es el último anfitrión asignado. Si lo quitas, el evento quedará sin acceso de anfitrión y sólo administración podrá gestionarlo. ¿Deseas continuar?{% else %}¿Deseas quitar a este anfitrión del evento?{% endif %}');"
-                            >
-                                {% csrf_token %}
-                                <button
-                                    type="submit"
-                                    class="host-remove-button"
-                                >
-                                    Quitar
-                                </button>
-                            </form>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>No hay anfitriones asignados todavía.</p>
-            {% endif %}
+                <div
+                    class="progress-bar"
+                    style="--progress: {{ porcentaje_almacenamiento }}%;"
+                ></div>
 
-            <a
-                href="{% url 'crear_usuario' %}?evento={{ evento.slug }}"
-                class="button"
+            </div>
+
+            <div
+                style="
+                    margin-top: 8px;
+                    color: var(--color-text-secondary);
+                    font-size: 13px;
+                "
             >
-                + Crear usuario
-            </a>
+                {{ almacenamiento_usado|filesizeformat }}
+                /
+                {{ max_almacenamiento|filesizeformat }}
+            </div>
 
-            <form
-                method="post"
-                action="{% url 'asignar_anfitrion_existente' evento.slug %}"
-                class="host-assignment"
-                style="margin-top: 14px;"
-            >
-                {% csrf_token %}
-                {{ asignar_anfitrion_form.usuario }}
-                <button type="submit" class="button button-secondary">
-                    Asignar usuario existente
-                </button>
-            </form>
+        </div>
 
-        </section>
+    </div>
 
-    {% endif %}
+    </div>
 
 {% endblock %}
 

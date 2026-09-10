@@ -1,18 +1,63 @@
 :root {
-    --ep-color-background: #f6f7fb;
-    --ep-color-surface: #ffffff;
-    --ep-color-text: #1f2937;
-    --ep-color-text-secondary: #6b7280;
-    --ep-color-primary: #635bff;
-    --ep-color-primary-hover: #5148e8;
-    --ep-color-accent: #8b5cf6;
-    --ep-color-success: #16a34a;
-    --ep-color-warning: #d97706;
-    --ep-color-danger: #dc2626;
-    --ep-color-border: #e5e7eb;
-    --ep-radius-sm: 8px;
-    --ep-radius-md: 12px;
-    --ep-radius-lg: 16px;
-    --ep-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
-    --ep-shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+    /* Paleta EventPhotos */
+    --palette-night: #073b4c;
+    --palette-turquoise: #16c7b0;
+    --palette-cyan: #20bfe7;
+    --palette-coral: #ef476f;
+    --palette-yellow: #ffc43d;
+    --palette-lavender: #c8b6e8;
+    --palette-cream: #f7fbef;
+    --palette-white: #ffffff;
+
+    /* Tokens semánticos */
+    --color-primary: var(--palette-turquoise);
+    --color-primary-dark: #0fa38f;
+    --color-primary-light: #e8faf7;
+    --color-accent: var(--palette-cyan);
+    --color-accent-secondary: var(--palette-lavender);
+    --color-danger: var(--palette-coral);
+    --color-danger-dark: #c9355a;
+    --color-danger-soft: #fff0f4;
+    --color-warning: var(--palette-yellow);
+    --color-warning-soft: #fff8df;
+    --color-warning-text: #6b4a00;
+    --color-success: #0f8f7f;
+    --color-success-soft: #e8faf7;
+    --color-info: var(--palette-cyan);
+    --color-info-soft: #eaf9fd;
+    --color-background: var(--palette-cream);
+    --color-surface: var(--palette-white);
+    --color-surface-muted: #f2f8f5;
+    --color-text: var(--palette-night);
+    --color-text-secondary: #46636d;
+    --color-text-muted: #6d858d;
+    --color-border: #d5e4e2;
+    --color-focus: var(--palette-cyan);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --shadow-sm: 0 2px 8px rgba(7, 59, 76, 0.06);
+    --shadow-md: 0 8px 24px rgba(7, 59, 76, 0.1);
+    --shadow-focus: 0 0 0 3px rgba(32, 191, 231, 0.32);
+    --transition: 0.2s ease;
+
+    /* Aliases para superficies que aún usan el prefijo histórico. */
+    --ep-color-background: var(--color-background);
+    --ep-color-surface: var(--color-surface);
+    --ep-color-text: var(--color-text);
+    --ep-color-text-secondary: var(--color-text-secondary);
+    --ep-color-primary: var(--color-primary);
+    --ep-color-primary-hover: var(--color-primary-dark);
+    --ep-color-accent: var(--color-accent);
+    --ep-color-success: var(--color-success);
+    --ep-color-warning: var(--color-warning);
+    --ep-color-danger: var(--color-danger);
+    --ep-color-border: var(--color-border);
+    --ep-radius-sm: var(--radius-sm);
+    --ep-radius-md: var(--radius-md);
+    --ep-radius-lg: var(--radius-lg);
+    --ep-shadow-sm: var(--shadow-sm);
+    --ep-shadow-md: var(--shadow-md);
 }
