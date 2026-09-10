@@ -6,9 +6,39 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from .models import Evento
+from .services.event_configuration import (
+    TIMEZONE_DEFAULT,
+    VIGENCIAS_ADMINISTRATIVAS,
+    inferir_vigencia_meses,
+    validar_timezone,
+)
+
+
+TIMEZONE_CHOICES = (
+    ("America/Mexico_City", "Centro de México"),
+    ("America/Cancun", "Quintana Roo"),
+    ("America/Tijuana", "Tijuana"),
+    ("America/Hermosillo", "Sonora"),
+    ("America/Mazatlan", "Pacífico de México"),
+)
+
+VIGENCIA_CHOICES = tuple(
+    (months, f"{months} meses") for months in VIGENCIAS_ADMINISTRATIVAS
+)
 
 
 class EventoForm(forms.ModelForm):
+    timezone = forms.ChoiceField(
+        label="Zona horaria",
+        choices=TIMEZONE_CHOICES,
+        initial=TIMEZONE_DEFAULT,
+    )
+    vigencia_meses = forms.TypedChoiceField(
+        label="Vigencia administrativa del álbum",
+        choices=VIGENCIA_CHOICES,
+        initial=VIGENCIAS_ADMINISTRATIVAS[0],
+        coerce=int,
+    )
 
     class Meta:
         model = Evento
@@ -37,6 +67,60 @@ class EventoForm(forms.ModelForm):
                 }
             ),
         }
+
+    def clean_timezone(self):
+        timezone_name = self.cleaned_data["timezone"]
+        validar_timezone(timezone_name)
+        return timezone_name
+
+
+class EventoEdicionForm(EventoForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        timezone_initial = self.instance.timezone or TIMEZONE_DEFAULT
+        vigencia_initial = inferir_vigencia_meses(self.instance)
+        self.fields["timezone"].initial = timezone_initial
+        self.fields["vigencia_meses"].initial = vigencia_initial
+        self.initial["timezone"] = timezone_initial
+        self.initial["vigencia_meses"] = vigencia_initial
+
+        if self.instance.estado in {
+            Evento.Estado.ACTIVE,
+            Evento.Estado.CLOSED,
+        }:
+            if not self.instance.timezone:
+                self.fields["timezone"].choices = (
+                    (("", "No configurada"),) + TIMEZONE_CHOICES
+                )
+                self.fields["timezone"].required = False
+                self.initial["timezone"] = ""
+            self.fields["fecha"].disabled = True
+            self.fields["timezone"].disabled = True
+            self.fields["vigencia_meses"].disabled = True
+
+        if self.instance.estado == Evento.Estado.ARCHIVED:
+            for field in self.fields.values():
+                field.disabled = True
+
+    def clean_timezone(self):
+        timezone_name = self.cleaned_data.get("timezone")
+        if not timezone_name and self.instance.estado != Evento.Estado.DRAFT:
+            return self.instance.timezone
+        return super().clean_timezone()
+
+
+class AsignarAnfitrionForm(forms.Form):
+    usuario = forms.ModelChoiceField(
+        label="Usuario existente",
+        queryset=User.objects.none(),
+        empty_label="Selecciona un usuario",
+    )
+
+    def __init__(self, *args, evento, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["usuario"].queryset = User.objects.exclude(
+            eventos_asignados=evento
+        ).order_by("email", "username")
 
 
 class EventoTemporalForm(forms.ModelForm):

@@ -15,6 +15,7 @@ from django.db.models import Count, Sum
 from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.template.loader import render_to_string
 
@@ -72,10 +73,19 @@ from .observability import log_operation
 from .upload_quota import reservas_upload as _reservas_upload
 
 from .forms import (
+    AsignarAnfitrionForm,
+    EventoEdicionForm,
     EventoForm,
     EventoTemporalForm,
     UsuarioForm,
     ActivarCuentaForm,
+)
+from .services.event_configuration import (
+    actualizar_evento_configurable,
+    asignar_anfitrion,
+    crear_evento_configurable,
+    evaluar_checklist,
+    validar_activacion,
 )
 
 def obtener_uploader_hash(request):
@@ -1848,14 +1858,15 @@ def crear_evento(request):
         form = EventoForm(request.POST)
 
         if form.is_valid():
-
-            evento = form.save(commit=False)
-            evento.estado = Evento.Estado.DRAFT
-
-            evento.save()
-
-            # El usuario que crea el evento queda como anfitrión.
-            evento.anfitriones.add(request.user)
+            evento = crear_evento_configurable(
+                nombre=form.cleaned_data["nombre"],
+                tipo=form.cleaned_data["tipo"],
+                fecha=form.cleaned_data["fecha"],
+                descripcion=form.cleaned_data["descripcion"],
+                mensaje_bienvenida=form.cleaned_data["mensaje_bienvenida"],
+                timezone_name=form.cleaned_data["timezone"],
+                duracion_efectiva_meses=form.cleaned_data["vigencia_meses"],
+            )
 
             messages.success(
                 request,
@@ -2382,6 +2393,12 @@ def crear_usuario(request):
                 f"Usuario {usuario.email} creado correctamente.",
             )
 
+            if evento_preseleccionado:
+                return redirect(
+                    "dashboard_evento",
+                    slug=evento_preseleccionado.slug,
+                )
+
             return redirect("dashboard")
 
     else:
@@ -2411,7 +2428,7 @@ def crear_usuario(request):
 def dashboard_evento(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
 
-    if request.method == "POST":
+    if request.method == "POST" and evento.configuracion_version is None:
         temporal_form = EventoTemporalForm(request.POST, instance=evento)
 
         if temporal_form.is_valid():
@@ -2468,8 +2485,78 @@ def dashboard_evento(request, slug):
             **_contexto_identidad_visual(evento),
             "temporal_form": temporal_form,
             "ciclo_temporal": contexto_ciclo_temporal(evento),
+            "checklist": evaluar_checklist(evento),
+            "anfitriones": evento.anfitriones.order_by("email", "username"),
+            "asignar_anfitrion_form": (
+                AsignarAnfitrionForm(evento=evento)
+                if request.user.is_superuser
+                else None
+            ),
         },
     )
+
+
+@login_required
+def editar_evento(request, slug):
+    evento = obtener_evento_del_usuario(request, slug)
+
+    if request.method == "POST":
+        form = EventoEdicionForm(request.POST, instance=evento)
+        if form.is_valid():
+            try:
+                actualizar_evento_configurable(
+                    evento,
+                    nombre=form.cleaned_data["nombre"],
+                    tipo=form.cleaned_data["tipo"],
+                    fecha=(
+                        form.cleaned_data["fecha"]
+                        if evento.estado == Evento.Estado.DRAFT
+                        else evento.fecha
+                    ),
+                    descripcion=form.cleaned_data["descripcion"],
+                    mensaje_bienvenida=form.cleaned_data["mensaje_bienvenida"],
+                    timezone_name=(
+                        form.cleaned_data["timezone"]
+                        if evento.estado == Evento.Estado.DRAFT
+                        else evento.timezone
+                    ),
+                    duracion_efectiva_meses=form.cleaned_data["vigencia_meses"],
+                )
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                messages.success(request, "Información del evento actualizada.")
+                return redirect("dashboard_evento", slug=evento.slug)
+    else:
+        form = EventoEdicionForm(instance=evento)
+
+    return render(
+        request,
+        "eventos/editar_evento.html",
+        {"evento": evento, "form": form},
+    )
+
+
+@login_required
+def asignar_anfitrion_existente(request, slug):
+    if not request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para asignar anfitriones.",
+            status=403,
+        )
+
+    evento = get_object_or_404(Evento, slug=slug)
+    if request.method != "POST":
+        return redirect("dashboard_evento", slug=evento.slug)
+
+    form = AsignarAnfitrionForm(request.POST, evento=evento)
+    if form.is_valid():
+        asignar_anfitrion(evento, form.cleaned_data["usuario"])
+        messages.success(request, "Anfitrión asignado correctamente.")
+    else:
+        messages.error(request, "Selecciona un usuario disponible.")
+
+    return redirect("dashboard_evento", slug=evento.slug)
 
 @login_required
 def reabrir_evento(request, slug):
@@ -2531,6 +2618,13 @@ def activar_evento(request, slug):
             "dashboard_evento",
             slug=evento.slug,
         )
+
+    try:
+        validar_activacion(evento)
+    except ValidationError as exc:
+        for error in exc.messages:
+            messages.error(request, error)
+        return redirect("dashboard_evento", slug=evento.slug)
 
     evento.estado = Evento.Estado.ACTIVE
     evento.save(update_fields=["estado", "updated_at"])

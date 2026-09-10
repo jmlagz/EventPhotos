@@ -1,0 +1,18 @@
+:root {
+    --ep-color-background: #f6f7fb;
+    --ep-color-surface: #ffffff;
+    --ep-color-text: #1f2937;
+    --ep-color-text-secondary: #6b7280;
+    --ep-color-primary: #635bff;
+    --ep-color-primary-hover: #5148e8;
+    --ep-color-accent: #8b5cf6;
+    --ep-color-success: #16a34a;
+    --ep-color-warning: #d97706;
+    --ep-color-danger: #dc2626;
+    --ep-color-border: #e5e7eb;
+    --ep-radius-sm: 8px;
+    --ep-radius-md: 12px;
+    --ep-radius-lg: 16px;
+    --ep-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+    --ep-shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+}

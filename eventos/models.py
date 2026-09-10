@@ -1,7 +1,7 @@
 import secrets
 import string
 import uuid
-from datetime import timedelta
+from datetime import timedelta, timezone as datetime_timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.relativedelta import relativedelta
@@ -115,6 +115,12 @@ class Evento(models.Model):
         null=True,
     )
 
+    configuracion_version = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        default=None,
+    )
+
     permitir_videos = models.BooleanField(default=False)
     moderacion_activa = models.BooleanField(default=True)
 
@@ -222,7 +228,9 @@ class Evento(models.Model):
         return event_timezone
 
     def _materializar_ventana_carga(self, fin_planeado):
-        upload_until = fin_planeado + timedelta(hours=48)
+        upload_until = fin_planeado.astimezone(
+            datetime_timezone.utc
+        ) + timedelta(hours=48)
 
         if upload_until <= fin_planeado:
             raise ValidationError(

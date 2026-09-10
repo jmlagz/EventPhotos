@@ -35,6 +35,8 @@ class P12BEventCreationTests(TestCase):
                 "fecha",
                 "descripcion",
                 "mensaje_bienvenida",
+                "timezone",
+                "vigencia_meses",
             ],
         )
 
@@ -57,6 +59,8 @@ class P12BEventCreationTests(TestCase):
                 "fecha": "2026-10-17",
                 "descripcion": "Descripción",
                 "mensaje_bienvenida": "Bienvenidos",
+                "timezone": "America/Mexico_City",
+                "vigencia_meses": "6",
             },
         )
 
@@ -76,6 +80,8 @@ class P12BEventCreationTests(TestCase):
                 "fecha": "2026-10-18",
                 "descripcion": "",
                 "mensaje_bienvenida": "",
+                "timezone": "America/Mexico_City",
+                "vigencia_meses": "6",
                 "plantilla": "inyectada",
                 "permitir_videos": "on",
                 "moderacion_activa": "",

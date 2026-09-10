@@ -1,0 +1,87 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Editar {{ evento.nombre }} - EventPhotos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .edit-card {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 28px;
+    }
+
+    .edit-header { margin-bottom: 24px; }
+    .edit-header h1 { margin: 8px 0; }
+    .edit-header p { color: var(--color-text-secondary); }
+    .form-field { margin-bottom: 18px; }
+    .form-field label { display: block; margin-bottom: 6px; font-weight: 600; }
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: var(--color-surface);
+    }
+    .form-field :disabled { background: var(--color-background); }
+    .form-errors { color: var(--ep-color-danger); margin-top: 6px; }
+    .form-help { color: var(--color-text-secondary); font-size: 13px; }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    @media (max-width: 700px) {
+        .edit-card { padding: 20px; }
+        .form-actions { flex-direction: column-reverse; }
+        .form-actions .button { width: 100%; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card edit-card">
+    <header class="edit-header">
+        <a href="{% url 'dashboard_evento' evento.slug %}">← Volver al evento</a>
+        <h1>Editar información del evento</h1>
+        <p>
+            {% if evento.estado == "draft" %}
+                La fecha y disponibilidad se rematerializarán al guardar.
+            {% elif evento.estado == "archived" %}
+                Los eventos archivados son de sólo lectura.
+            {% else %}
+                La fecha y zona horaria están bloqueadas en este estado.
+            {% endif %}
+        </p>
+    </header>
+
+    <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-errors">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        {% for field in form %}
+            <div class="form-field">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.name == "vigencia_meses" %}
+                    <div class="form-help">
+                        Vigencia administrativa efectiva; no representa un plan comercial.
+                    </div>
+                {% endif %}
+                {% if field.errors %}
+                    <div class="form-errors">{{ field.errors }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <div class="form-actions">
+            <a class="button button-secondary" href="{% url 'dashboard_evento' evento.slug %}">
+                Cancelar
+            </a>
+            {% if evento.estado != "archived" %}
+                <button class="button" type="submit">Guardar cambios</button>
+            {% endif %}
+        </div>
+    </form>
+</section>
+{% endblock %}

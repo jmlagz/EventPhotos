@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -10,6 +11,8 @@
 
     <title>Crear evento - EventPhotos</title>
 
+    <link rel="stylesheet" href="{% static 'eventos/css/tokens.css' %}">
+
     <style>
         * {
             box-sizing: border-box;
@@ -20,8 +23,8 @@
             max-width: 1000px;
             margin: 0 auto;
             padding: 30px 20px;
-            background: #f7f7f7;
-            color: #222;
+            background: var(--ep-color-background);
+            color: var(--ep-color-text);
         }
 
         .encabezado {
@@ -34,13 +37,13 @@
 
         .encabezado p {
             margin: 0;
-            color: #666;
+            color: var(--ep-color-text-secondary);
         }
 
         .volver {
             display: inline-block;
             margin-bottom: 18px;
-            color: #555;
+            color: var(--ep-color-text-secondary);
             text-decoration: none;
         }
 
@@ -49,7 +52,7 @@
         }
 
         .tarjeta {
-            background: white;
+            background: var(--ep-color-surface);
             padding: 30px;
             border-radius: 14px;
             box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
@@ -75,7 +78,7 @@
         .campo textarea {
             width: 100%;
             padding: 11px 12px;
-            border: 1px solid #d5d5d5;
+            border: 1px solid var(--ep-color-border);
             border-radius: 8px;
             font-family: inherit;
             font-size: 15px;
@@ -90,7 +93,7 @@
         .campo select:focus,
         .campo textarea:focus {
             outline: none;
-            border-color: #555;
+            border-color: var(--ep-color-primary);
         }
 
         .fila {
@@ -126,7 +129,7 @@
 
         .ayuda {
             margin-top: 5px;
-            color: #777;
+            color: var(--ep-color-text-secondary);
             font-size: 13px;
         }
 
@@ -170,12 +173,12 @@
         }
 
         .boton-principal {
-            background: #333;
+            background: var(--ep-color-primary);
             color: white;
         }
 
         .boton-principal:hover {
-            background: #222;
+            background: var(--ep-color-primary-hover);
         }
 
         @media (max-width: 700px) {
@@ -272,6 +275,30 @@
                     {% endif %}
                 </div>
 
+            </div>
+
+            <div class="fila">
+                <div class="campo">
+                    {{ form.timezone.label_tag }}
+                    {{ form.timezone }}
+                    <div class="ayuda">
+                        Las fechas se calcularán en la hora local seleccionada.
+                    </div>
+                    {% if form.timezone.errors %}
+                        <div class="errores">{{ form.timezone.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="campo">
+                    {{ form.vigencia_meses.label_tag }}
+                    {{ form.vigencia_meses }}
+                    <div class="ayuda">
+                        Vigencia efectiva acordada para este evento.
+                    </div>
+                    {% if form.vigencia_meses.errors %}
+                        <div class="errores">{{ form.vigencia_meses.errors }}</div>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="campo">

@@ -390,6 +390,47 @@
         transform: translateY(-1px);
     }
 
+    .activate-event-button:disabled {
+        background: var(--color-border);
+        color: var(--color-text-secondary);
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .checklist-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .checklist-item {
+        padding: 14px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-background);
+    }
+
+    .checklist-item-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-weight: 600;
+    }
+
+    .checklist-state { color: var(--color-text-secondary); }
+    .checklist-state-complete { color: var(--ep-color-success); }
+    .checklist-state-review { color: var(--ep-color-warning); }
+    .checklist-item p { margin: 6px 0 0; color: var(--color-text-secondary); }
+    .host-list { padding-left: 20px; }
+    .host-assignment { display: flex; gap: 10px; flex-wrap: wrap; }
+    .host-assignment select { min-width: 260px; padding: 10px; }
+
+    @media (max-width: 700px) {
+        .checklist-grid { grid-template-columns: 1fr; }
+        .host-assignment select,
+        .host-assignment .button { width: 100%; }
+    }
+
 </style>
 
 {% endblock %}
@@ -432,6 +473,31 @@
         {% endif %}
 
     </div>
+
+    <div class="buttons" style="margin-bottom: 24px;">
+        <a class="button button-secondary" href="{% url 'editar_evento' evento.slug %}">
+            ✏️ Editar información
+        </a>
+    </div>
+
+    {% if evento.configuracion_version %}
+        <section class="card section">
+            <h2>✅ Checklist de configuración</h2>
+            <div class="checklist-grid">
+                {% for item in checklist.items %}
+                    <div class="checklist-item" data-checklist="{{ item.clave }}">
+                        <div class="checklist-item-header">
+                            <span>{{ item.titulo }}</span>
+                            <span class="checklist-state {% if item.estado == 'Completo' %}checklist-state-complete{% elif item.estado == 'Revisar' %}checklist-state-review{% endif %}">
+                                {{ item.estado }}
+                            </span>
+                        </div>
+                        <p>{{ item.detalle }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
 
 
     <!-- =========================
@@ -713,6 +779,7 @@
             Ciclo temporal
         </h3>
 
+        {% if evento.configuracion_version is None %}
         <form method="post" style="margin-top: 12px;">
             {% csrf_token %}
 
@@ -744,6 +811,12 @@
                 Guardar configuración temporal
             </button>
         </form>
+        {% else %}
+            <p>
+                La temporalidad del flujo guiado se modifica desde
+                <a href="{% url 'editar_evento' evento.slug %}">Editar información</a>.
+            </p>
+        {% endif %}
 
         <div style="margin-top: 18px;">
             <p>
@@ -780,6 +853,7 @@
                 <button
                     type="submit"
                     class="activate-event-button"
+                    {% if evento.configuracion_version and not checklist.listo %}disabled{% endif %}
                 >
                     🚀 Activar evento
                 </button>
@@ -897,12 +971,38 @@
                 a este evento.
             </p>
 
+            {% if anfitriones %}
+                <ul class="host-list">
+                    {% for anfitrion in anfitriones %}
+                        <li>
+                            {{ anfitrion.get_full_name|default:anfitrion.username }}
+                            — {{ anfitrion.email }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No hay anfitriones asignados todavía.</p>
+            {% endif %}
+
             <a
                 href="{% url 'crear_usuario' %}?evento={{ evento.slug }}"
                 class="button"
             >
                 + Crear usuario
             </a>
+
+            <form
+                method="post"
+                action="{% url 'asignar_anfitrion_existente' evento.slug %}"
+                class="host-assignment"
+                style="margin-top: 14px;"
+            >
+                {% csrf_token %}
+                {{ asignar_anfitrion_form.usuario }}
+                <button type="submit" class="button button-secondary">
+                    Asignar usuario existente
+                </button>
+            </form>
 
         </section>
 

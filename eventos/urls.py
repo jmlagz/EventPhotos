@@ -138,6 +138,18 @@ urlpatterns = [
     ),
 
     path(
+        "dashboard/eventos/<slug:slug>/editar/",
+        views.editar_evento,
+        name="editar_evento",
+    ),
+
+    path(
+        "dashboard/eventos/<slug:slug>/anfitriones/asignar/",
+        views.asignar_anfitrion_existente,
+        name="asignar_anfitrion_existente",
+    ),
+
+    path(
         "dashboard/eventos/<slug:slug>/activar/",
         views.activar_evento,
         name="activar_evento",
