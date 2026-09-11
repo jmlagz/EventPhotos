@@ -19,6 +19,18 @@ urlpatterns = [
     ),
 
     path(
+        "registro/",
+        views.registro_publico,
+        name="registro_publico",
+    ),
+
+    path(
+        "registro/pendiente/",
+        views.registro_publico_pendiente,
+        name="registro_publico_pendiente",
+    ),
+
+    path(
         "password-reset/",
         views.password_reset_request,
         name="password_reset",

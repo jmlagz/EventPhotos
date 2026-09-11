@@ -234,4 +234,26 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "EventPhotos <event.photos@lotus-nest.com>",
 )
 
+SELF_SERVICE_ENABLED = (
+    os.getenv("SELF_SERVICE_ENABLED", "False").strip().lower() == "true"
+)
+
+LEGAL_TERMS_VERSION = os.getenv(
+    "LEGAL_TERMS_VERSION", "2026-09"
+).strip()
+LEGAL_PRIVACY_VERSION = os.getenv(
+    "LEGAL_PRIVACY_VERSION", "2026-09"
+).strip()
+LEGAL_TERMS_URL = os.getenv("LEGAL_TERMS_URL", "").strip()
+LEGAL_PRIVACY_URL = os.getenv("LEGAL_PRIVACY_URL", "").strip()
+
+SIGNUP_ADMIN_NOTIFICATIONS = (
+    os.getenv("SIGNUP_ADMIN_NOTIFICATIONS", "False").strip().lower()
+    == "true"
+)
+SIGNUP_NOTIFICATION_EMAIL = os.getenv(
+    "SIGNUP_NOTIFICATION_EMAIL",
+    "",
+).strip()
+
 

@@ -5,6 +5,7 @@ import io
 import uuid
 import zipfile
 import qrcode
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from botocore.exceptions import ClientError
 
@@ -79,6 +80,11 @@ from .forms import (
     EventoTemporalForm,
     UsuarioForm,
     ActivarCuentaForm,
+    RegistroPublicoForm,
+)
+from .services.account_registration import (
+    EmailYaRegistrado,
+    registrar_usuario_publico,
 )
 from .services.event_configuration import (
     actualizar_evento_configurable,
@@ -241,6 +247,67 @@ password_reset_confirm = PasswordResetConfirmView.as_view(
 password_reset_complete = PasswordResetCompleteView.as_view(
     template_name="eventos/password_reset_complete.html",
 )
+
+
+def _legal_url_es_segura(value):
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    if parsed.scheme:
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    return value.startswith("/") and not value.startswith("//")
+
+
+def registro_publico(request):
+    if not settings.SELF_SERVICE_ENABLED:
+        raise Http404
+    legal_values = (
+        settings.LEGAL_TERMS_VERSION,
+        settings.LEGAL_PRIVACY_VERSION,
+        settings.LEGAL_TERMS_URL,
+        settings.LEGAL_PRIVACY_URL,
+    )
+    if not all(legal_values) or not all(
+        (
+            _legal_url_es_segura(settings.LEGAL_TERMS_URL),
+            _legal_url_es_segura(settings.LEGAL_PRIVACY_URL),
+        )
+    ):
+        raise Http404
+
+    if request.method == "POST":
+        form = RegistroPublicoForm(request.POST)
+        if form.is_valid():
+            if not form.email_ya_existe:
+                try:
+                    registrar_usuario_publico(
+                        first_name=form.cleaned_data["first_name"],
+                        last_name=form.cleaned_data["last_name"],
+                        email=form.cleaned_data["email"],
+                        password=form.cleaned_data["password"],
+                        version_terminos=settings.LEGAL_TERMS_VERSION,
+                        version_privacidad=settings.LEGAL_PRIVACY_VERSION,
+                    )
+                except EmailYaRegistrado:
+                    pass
+            return redirect("registro_publico_pendiente")
+    else:
+        form = RegistroPublicoForm()
+
+    return render(
+        request,
+        "eventos/registro_publico.html",
+        {
+            "form": form,
+            "terms_url": settings.LEGAL_TERMS_URL,
+            "privacy_url": settings.LEGAL_PRIVACY_URL,
+        },
+    )
+
+
+def registro_publico_pendiente(request):
+    return render(request, "eventos/registro_publico_pendiente.html")
 
 def login_anfitrion(request):
 

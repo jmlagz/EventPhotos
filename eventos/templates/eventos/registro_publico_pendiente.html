@@ -1,0 +1,54 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Cuenta creada - EventPhotos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pending-card {
+        max-width: 560px;
+        margin: 40px auto;
+        padding: 32px 24px;
+        text-align: center;
+    }
+
+    .pending-mark {
+        width: 58px;
+        height: 58px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: var(--color-success-soft);
+        color: var(--color-success);
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .pending-card h1 {
+        margin: 0 0 10px;
+    }
+
+    .pending-card p {
+        color: var(--color-text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card pending-card" aria-labelledby="pending-title">
+    <div class="pending-mark" aria-hidden="true">✓</div>
+    <h1 id="pending-title">Tu cuenta fue creada</h1>
+    <p>
+        La cuenta está pendiente de activación. Todavía no podrás iniciar
+        sesión. Te avisaremos cuando puedas continuar.
+    </p>
+    <p>
+        Si ya tenías una cuenta con este correo, puedes
+        <a href="{% url 'login_anfitrion' %}">iniciar sesión</a> o
+        <a href="{% url 'password_reset' %}">recuperar tu contraseña</a>.
+    </p>
+    <a class="button button-secondary" href="{% url 'home' %}">
+        Volver al inicio
+    </a>
+</section>
+{% endblock %}

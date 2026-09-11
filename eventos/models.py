@@ -247,6 +247,23 @@ class Evento(models.Model):
         ordering = ["-fecha", "-created_at"]
 
 
+class AceptacionLegal(models.Model):
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="aceptaciones_legales",
+    )
+    version_terminos = models.CharField(max_length=32)
+    version_privacidad = models.CharField(max_length=32)
+    aceptado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-aceptado_en", "-pk")
+
+    def __str__(self):
+        return f"Aceptación legal de {self.usuario.username}"
+
+
 class Mesa(models.Model):
     evento = models.ForeignKey(
         Evento,

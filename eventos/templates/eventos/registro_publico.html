@@ -1,0 +1,197 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Crea tu cuenta - EventPhotos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .signup-shell {
+        width: 100%;
+        max-width: 560px;
+        margin: 0 auto;
+    }
+
+    .signup-card {
+        padding: 24px;
+    }
+
+    .signup-card h1 {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 8vw, 38px);
+        line-height: 1.15;
+    }
+
+    .signup-intro,
+    .signup-login,
+    .field-help {
+        color: var(--color-text-secondary);
+    }
+
+    .signup-form {
+        display: grid;
+        gap: 18px;
+        margin-top: 26px;
+    }
+
+    .signup-field label {
+        display: block;
+        margin-bottom: 7px;
+        font-weight: 700;
+    }
+
+    .signup-field input[type="text"],
+    .signup-field input[type="email"],
+    .signup-field input[type="password"] {
+        width: 100%;
+        min-height: 48px;
+        padding: 11px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        color: var(--color-text);
+    }
+
+    .signup-field input:focus {
+        border-color: var(--color-focus);
+    }
+
+    .field-help,
+    .field-errors {
+        margin-top: 6px;
+        font-size: 14px;
+    }
+
+    .field-help ul,
+    .field-errors ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+    }
+
+    .field-errors,
+    .form-errors {
+        color: var(--color-danger-dark);
+    }
+
+    .form-errors {
+        padding: 12px 14px;
+        border: 1px solid var(--color-danger);
+        border-radius: var(--radius-md);
+        background: var(--color-danger-soft);
+    }
+
+    .legal-checks {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border-radius: var(--radius-md);
+        background: var(--color-surface-muted);
+    }
+
+    .legal-check {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .legal-check input {
+        width: 20px;
+        height: 20px;
+        margin: 2px 0 0;
+    }
+
+    .legal-check a,
+    .signup-login a {
+        color: var(--color-primary-dark);
+        font-weight: 700;
+    }
+
+    .signup-submit {
+        width: 100%;
+    }
+
+    .signup-login {
+        margin: 20px 0 0;
+        text-align: center;
+    }
+
+    @media (min-width: 600px) {
+        .signup-card {
+            padding: 36px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="signup-shell">
+    <section class="card signup-card" aria-labelledby="signup-title">
+        <h1 id="signup-title">Crea tu cuenta</h1>
+        <p class="signup-intro">
+            Registra tus datos para comenzar. Tu cuenta quedará pendiente de
+            verificación antes de que puedas iniciar sesión.
+        </p>
+
+        <form method="post" class="signup-form" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="form-errors" role="alert">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            {% for field in form %}
+                {% if field.name != "acepta_terminos" and field.name != "acepta_privacidad" %}
+                    <div class="signup-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <div class="field-help">{{ field.help_text|safe }}</div>
+                        {% endif %}
+                        {% if field.errors %}
+                            <div class="field-errors" role="alert">{{ field.errors }}</div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+
+            <div class="legal-checks">
+                <div>
+                    <label class="legal-check" for="{{ form.acepta_terminos.id_for_label }}">
+                        {{ form.acepta_terminos }}
+                        <span>
+                            Acepto los
+                            <a href="{{ terms_url }}" target="_blank" rel="noopener">Términos de servicio</a>.
+                        </span>
+                    </label>
+                    {% if form.acepta_terminos.errors %}
+                        <div class="field-errors" role="alert">{{ form.acepta_terminos.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="legal-check" for="{{ form.acepta_privacidad.id_for_label }}">
+                        {{ form.acepta_privacidad }}
+                        <span>
+                            Acepto el
+                            <a href="{{ privacy_url }}" target="_blank" rel="noopener">Aviso de privacidad</a>.
+                        </span>
+                    </label>
+                    {% if form.acepta_privacidad.errors %}
+                        <div class="field-errors" role="alert">{{ form.acepta_privacidad.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <button class="button signup-submit" type="submit">
+                Crear mi cuenta
+            </button>
+        </form>
+
+        <p class="signup-login">
+            ¿Ya tienes una cuenta?
+            <a href="{% url 'login_anfitrion' %}">Inicia sesión</a>
+        </p>
+    </section>
+</div>
+{% endblock %}

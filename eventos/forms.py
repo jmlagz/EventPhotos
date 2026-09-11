@@ -3,7 +3,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import (
+    validate_password,
+)
 from django.utils import timezone
+from django.utils.translation import override
 
 from .models import Evento
 from .services.event_configuration import (
@@ -305,5 +309,87 @@ class ActivarCuentaForm(forms.Form):
                 raise forms.ValidationError(
                     "Las contraseñas no coinciden."
                 )
+
+        return cleaned_data
+
+
+class RegistroPublicoForm(forms.Form):
+    first_name = forms.CharField(
+        label="Nombre",
+        max_length=150,
+        error_messages={"required": "Este campo es obligatorio."},
+    )
+    last_name = forms.CharField(
+        label="Apellidos",
+        max_length=150,
+        required=False,
+    )
+    email = forms.EmailField(
+        label="Correo electrónico",
+        max_length=150,
+        help_text="Usaremos este correo para verificar tu acceso.",
+        error_messages={
+            "required": "Este campo es obligatorio.",
+            "invalid": "Escribe un correo electrónico válido.",
+        },
+    )
+    password = forms.CharField(
+        label="Contraseña",
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        help_text=(
+            "Usa una contraseña difícil de adivinar, con al menos "
+            "8 caracteres y que no sea completamente numérica."
+        ),
+        error_messages={"required": "Este campo es obligatorio."},
+    )
+    password_confirmacion = forms.CharField(
+        label="Confirmar contraseña",
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        error_messages={"required": "Este campo es obligatorio."},
+    )
+    acepta_terminos = forms.BooleanField(
+        label="Acepto los Términos de servicio",
+        required=True,
+        error_messages={"required": "Este campo es obligatorio."},
+    )
+    acepta_privacidad = forms.BooleanField(
+        label="Acepto el Aviso de privacidad",
+        required=True,
+        error_messages={"required": "Este campo es obligatorio."},
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        self.email_ya_existe = (
+            User.objects.filter(username__iexact=email).exists()
+            or User.objects.filter(email__iexact=email).exists()
+        )
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        password_confirmacion = cleaned_data.get("password_confirmacion")
+
+        if password and password_confirmacion:
+            if password != password_confirmacion:
+                self.add_error(
+                    "password_confirmacion",
+                    "Las contraseñas no coinciden.",
+                )
+            else:
+                usuario = User(
+                    username=cleaned_data.get("email", ""),
+                    email=cleaned_data.get("email", ""),
+                    first_name=cleaned_data.get("first_name", ""),
+                    last_name=cleaned_data.get("last_name", ""),
+                )
+                try:
+                    with override("es"):
+                        validate_password(password, user=usuario)
+                except forms.ValidationError as exc:
+                    self.add_error("password", exc)
 
         return cleaned_data
