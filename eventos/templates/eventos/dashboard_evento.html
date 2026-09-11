@@ -46,6 +46,77 @@
         color: var(--color-primary);
     }
 
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        margin-bottom: 14px;
+        color: var(--color-text-muted);
+        font-size: 14px;
+    }
+
+    .breadcrumb a {
+        color: var(--color-text-secondary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover,
+    .breadcrumb a:focus-visible {
+        color: var(--color-primary);
+    }
+
+    .breadcrumb [aria-current="page"] {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--color-text);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .event-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .event-heading h1 {
+        margin: 0;
+    }
+
+    .event-quick-access {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 18px 20px;
+        margin-bottom: 24px;
+    }
+
+    .event-quick-copy {
+        min-width: 180px;
+    }
+
+    .event-quick-copy strong,
+    .event-quick-copy span {
+        display: block;
+    }
+
+    .event-quick-copy span {
+        margin-top: 3px;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+    }
+
+    .event-quick-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
 
     /* =========================
        MÉTRICAS
@@ -274,6 +345,15 @@
             padding: 20px;
         }
 
+        .event-quick-access {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .event-quick-actions {
+            justify-content: flex-start;
+        }
+
     }
     .checklist-grid {
         display: grid;
@@ -475,6 +555,11 @@
         .event-header h1 {
             overflow-wrap: anywhere;
         }
+
+        .event-quick-actions,
+        .event-quick-actions .button {
+            width: 100%;
+        }
     }
 
 </style>
@@ -484,13 +569,26 @@
 
 {% block content %}
 
+    <nav class="breadcrumb" aria-label="Ruta de navegación">
+        {% if request.user.is_superuser %}
+            <a href="{% url 'dashboard' %}">Dashboard</a>
+        {% else %}
+            <a href="{% url 'dashboard_anfitrion' %}">Mis eventos</a>
+        {% endif %}
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">{{ evento.nombre }}</span>
+    </nav>
+
     <div class="event-header">
 
         <div>
 
-            <h1>
-                {{ evento.nombre }}
-            </h1>
+            <div class="event-heading">
+                <h1>{{ evento.nombre }}</h1>
+                <span class="state-badge state-badge-{{ evento.estado }}">
+                    {{ evento.get_estado_display }}
+                </span>
+            </div>
 
             <p>
                 📅 {{ evento.fecha|date:"d/m/Y" }}
@@ -498,27 +596,69 @@
 
         </div>
 
-        {% if request.user.is_superuser %}
-
-            <a
-                href="{% url 'dashboard' %}"
-                class="back-link"
-            >
-                ← Volver a mis eventos
-            </a>
-
-        {% else %}
-
-            <a
-                href="{% url 'dashboard_anfitrion' %}"
-                class="back-link"
-            >
-                ← Volver a mis eventos
-            </a>
-
-        {% endif %}
-
     </div>
+
+    <nav class="card event-quick-access" aria-label="Accesos rápidos del evento">
+        <div class="event-quick-copy">
+            <strong>Accesos rápidos</strong>
+            {% if evento.estado == "draft" %}
+                <span>Completa la configuración antes de publicar.</span>
+            {% elif evento.estado == "active" %}
+                <span>El evento está publicado y disponible.</span>
+            {% elif evento.estado == "closed" %}
+                <span>La carga está cerrada; consulta o revisa la reapertura.</span>
+            {% else %}
+                <span>Evento archivado disponible sólo para consulta.</span>
+            {% endif %}
+        </div>
+
+        <div class="event-quick-actions">
+            {% if evento.estado == "draft" %}
+                <a class="button" href="#config-activacion" data-quick-action="activar">
+                    Revisar y activar
+                </a>
+                <a class="button button-secondary" href="{% url 'mesas_dashboard' slug=evento.slug %}" data-quick-action="mesas">
+                    Mesas y QR
+                </a>
+                <a class="button button-secondary" href="{% url 'editar_evento' evento.slug %}" data-quick-action="editar">
+                    Editar información
+                </a>
+            {% elif evento.estado == "active" %}
+                {% if evento.permite_album_publico %}
+                    <a class="button" href="{% url 'album_publico' slug=evento.slug %}" target="_blank" rel="noopener" data-quick-action="album">
+                        🖼️ Ver álbum del evento
+                    </a>
+                    <a class="button button-secondary" href="{% url 'slideshow' slug=evento.slug %}" target="_blank" rel="noopener" data-quick-action="slideshow">
+                        ▶️ Abrir slideshow
+                    </a>
+                {% endif %}
+                <a class="button button-secondary" href="{% url 'mesas_dashboard' slug=evento.slug %}" data-quick-action="mesas">
+                    Mesas y QR
+                </a>
+            {% elif evento.estado == "closed" %}
+                {% if evento.permite_album_publico %}
+                    <a class="button" href="{% url 'album_publico' slug=evento.slug %}" target="_blank" rel="noopener" data-quick-action="album">
+                        🖼️ Ver álbum del evento
+                    </a>
+                    <a class="button button-secondary" href="{% url 'slideshow' slug=evento.slug %}" target="_blank" rel="noopener" data-quick-action="slideshow">
+                        ▶️ Abrir slideshow
+                    </a>
+                {% endif %}
+                <a class="button button-secondary" href="#config-activacion" data-quick-action="reabrir">
+                    Revisar reapertura
+                </a>
+            {% endif %}
+
+            {% if not evento.permite_album_publico %}
+                <span class="button button-disabled" aria-disabled="true">
+                    🖼️ Álbum no disponible actualmente
+                </span>
+                <p class="album-unavailable-help">
+                    El estado o periodo de disponibilidad del evento no permite abrir el álbum.
+                </p>
+            {% endif %}
+        </div>
+    </nav>
 
     <div class="dashboard-flow">
 
@@ -1035,39 +1175,6 @@
         {% endif %}
 
         <div class="buttons" style="margin-top: 10px;">
-
-            {% if evento.permite_album_publico %}
-                <a
-                    href="{% url 'album_publico' slug=evento.slug %}"
-                    class="button button-secondary"
-                    target="_blank"
-                    rel="noopener"
-                >
-                    🖼️ Ver álbum del evento
-                </a>
-            {% else %}
-                <span
-                    class="button button-disabled"
-                    aria-disabled="true"
-                >
-                    🖼️ Álbum no disponible actualmente
-                </span>
-                <p class="album-unavailable-help">
-                    El estado o periodo de disponibilidad del evento no permite abrir el álbum.
-                </p>
-            {% endif %}
-
-            {% if evento.permite_album_publico %}
-                <a
-                    href="{% url 'slideshow' slug=evento.slug %}"
-                    class="button button-secondary"
-                    target="_blank"
-                    rel="noopener"
-                >
-                    ▶️ Abrir slideshow
-                </a>
-            {% endif %}
-
             <a
                 href="{% url 'descargar_fotos_evento' evento.slug %}"
                 class="button button-secondary"

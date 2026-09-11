@@ -1,274 +1,39 @@
 {% extends "eventos/base.html" %}
+{% load static %}
 
-{% block title %}
-Mis eventos - EventPhotos
-{% endblock %}
+{% block title %}Mis eventos - EventPhotos{% endblock %}
 
 {% block extra_css %}
-
-<style>
-
-    .dashboard-header {
-        margin-bottom: 30px;
-    }
-
-    .dashboard-header h1 {
-        margin: 0 0 6px;
-        font-size: 30px;
-        letter-spacing: -0.5px;
-    }
-
-    .dashboard-header p {
-        margin: 0;
-        color: var(--color-text-secondary);
-    }
-
-    .section-header {
-        margin-bottom: 20px;
-    }
-
-    .section-header h2 {
-        margin: 0;
-        font-size: 22px;
-    }
-
-    .events-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-    }
-
-    .event-card {
-        padding: 22px;
-
-        transition:
-            transform var(--transition),
-            box-shadow var(--transition);
-    }
-
-    .event-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
-    }
-
-    .event-card h2 {
-        margin: 0 0 18px;
-        font-size: 20px;
-    }
-
-    .event-info {
-        margin-bottom: 20px;
-    }
-
-    .event-info p {
-        margin: 8px 0;
-        color: var(--color-text-secondary);
-    }
-
-    .metric {
-        margin-top: 18px;
-    }
-
-    .metric-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-
-        margin-bottom: 7px;
-
-        font-size: 13px;
-    }
-
-    .metric-title {
-        font-weight: 600;
-    }
-
-    .metric-value {
-        color: var(--color-text-secondary);
-    }
-
-    .progress-container {
-        width: 100%;
-        height: 8px;
-
-        margin-top: 7px;
-
-        background: #e5e7eb;
-        border-radius: 999px;
-
-        overflow: hidden;
-    }
-
-    .progress-bar {
-        width: var(--progress);
-        height: 100%;
-
-        background:
-            linear-gradient(
-                90deg,
-                var(--color-primary),
-                #8b5cf6
-            );
-
-        border-radius: 999px;
-    }
-
-    .event-card .button {
-        margin-top: 20px;
-        width: 100%;
-        text-align: center;
-    }
-
-    .empty-state {
-        padding: 30px;
-        text-align: center;
-        color: var(--color-text-secondary);
-    }
-
-    @media (max-width: 700px) {
-
-        .dashboard-header h1 {
-            font-size: 26px;
-        }
-
-        .events-grid {
-            grid-template-columns: 1fr;
-        }
-
-    }
-
-</style>
-
+<link rel="stylesheet" href="{% static 'eventos/css/dashboard-lists.css' %}">
 {% endblock %}
 
 {% block content %}
-
-    <div class="dashboard-header">
-
-        <div>
-
-            <h1>
-                Hola, {{ request.user.username }} 👋
-            </h1>
-
-            <p>
-                Administra tus eventos desde un solo lugar.
-            </p>
-
-        </div>
-
+<header class="dashboard-header">
+    <div>
+        <h1>Hola, {{ request.user.get_full_name|default:request.user.username }} 👋</h1>
+        <p>Encuentra tu evento y continúa administrándolo desde un solo lugar.</p>
     </div>
+</header>
 
-
+<section aria-labelledby="events-title">
     <div class="section-header">
-
-        <h2>
-            Mis eventos
-        </h2>
-
+        <div>
+            <h2 id="events-title">Mis eventos</h2>
+            <p class="section-description">Los eventos activos aparecen primero.</p>
+        </div>
     </div>
-
 
     {% if eventos %}
-
         <div class="events-grid">
-
             {% for evento in eventos %}
-
-                <article class="card event-card">
-
-                    <h2>
-                        {{ evento.nombre }}
-                    </h2>
-
-                    <div class="event-info">
-
-                        <p>
-                            📅 {{ evento.fecha|date:"d/m/Y" }}
-                        </p>
-
-                        <p>
-                            🪑 {{ evento.mesas.count }} mesa(s)
-                        </p>
-
-                    </div>
-
-
-                    <div class="metric">
-
-                        <div class="metric-header">
-
-                            <span class="metric-title">
-                                📸 Fotos
-                            </span>
-
-                            <span class="metric-value">
-                                {{ evento.total_fotos }} / 450
-                            </span>
-
-                        </div>
-
-                        <div class="progress-container">
-
-                            <div
-                                class="progress-bar"
-                                style="--progress: {{ evento.porcentaje_fotos }}%;"
-                            ></div>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="metric">
-
-                        <div class="metric-header">
-
-                            <span class="metric-title">
-                                💾 Almacenamiento
-                            </span>
-
-                            <span class="metric-value">
-                                {{ evento.almacenamiento_usado|filesizeformat }}
-                                /
-                                4 GB
-                            </span>
-
-                        </div>
-
-                        <div class="progress-container">
-
-                            <div
-                                class="progress-bar"
-                                style="--progress: {{ evento.porcentaje_almacenamiento }}%;"
-                            ></div>
-
-                        </div>
-
-                    </div>
-
-
-                    <a
-                        href="{% url 'dashboard_evento' slug=evento.slug %}"
-                        class="button"
-                    >
-                        Administrar evento →
-                    </a>
-
-                </article>
-
+                {% include "eventos/_dashboard_event_card.html" with evento=evento action_label="Entrar al evento" only %}
             {% endfor %}
-
         </div>
-
     {% else %}
-
         <div class="card empty-state">
-
+            <span class="empty-state-icon" aria-hidden="true">📅</span>
             No tienes eventos asignados todavía.
-
         </div>
-
     {% endif %}
-
+</section>
 {% endblock %}

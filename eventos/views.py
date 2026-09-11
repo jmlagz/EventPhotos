@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 
 
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
@@ -1728,63 +1728,83 @@ def home(request):
         "eventos/home.html",
     )
 
+
+def _eventos_para_dashboard(queryset):
+    eventos = list(
+        queryset
+        .annotate(
+            total_fotos=Count(
+                "fotos",
+                filter=Q(fotos__eliminada_at__isnull=True),
+            ),
+            almacenamiento_usado=Sum(
+                "fotos__tamaño",
+                filter=Q(fotos__eliminada_at__isnull=True),
+            ),
+            prioridad_estado=Case(
+                When(estado=Evento.Estado.ACTIVE, then=0),
+                When(estado=Evento.Estado.DRAFT, then=1),
+                When(estado=Evento.Estado.CLOSED, then=2),
+                When(estado=Evento.Estado.ARCHIVED, then=3),
+                default=4,
+                output_field=IntegerField(),
+            ),
+        )
+        .prefetch_related("mesas")
+        .order_by("prioridad_estado", "-fecha", "-created_at")
+    )
+
+    for evento in eventos:
+        evento.almacenamiento_usado = evento.almacenamiento_usado or 0
+        evento.porcentaje_fotos = (
+            evento.total_fotos / MAX_FOTOS_POR_EVENTO * 100
+        )
+        evento.porcentaje_almacenamiento = (
+            evento.almacenamiento_usado / MAX_STORAGE_POR_EVENTO * 100
+        )
+        evento.imagen_portada_url = None
+
+        if evento.imagen_portada_key:
+            try:
+                evento.imagen_portada_url = generar_url_lectura(
+                    evento.imagen_portada_key
+                )
+            except Exception:
+                logger.warning(
+                    "dashboard cover signing failed",
+                    extra={"evento_id": evento.pk},
+                )
+
+    return eventos
+
 @login_required
 def dashboard(request):
 
     if not request.user.is_superuser:
         return redirect("dashboard_anfitrion")
 
-    eventos = Evento.objects.all()
+    eventos = _eventos_para_dashboard(Evento.objects.all())
 
-    total_eventos = eventos.count()
-
-    total_fotos = Foto.objects.filter(
-        evento__in=eventos,
-        eliminada_at__isnull=True,
-    ).count()
-
-    almacenamiento_usado = (
-        Foto.objects.filter(
-            evento__in=eventos,
-            eliminada_at__isnull=True,
-        )
-        .aggregate(total=Sum("tamaño"))
-        .get("total")
-        or 0
+    total_eventos = len(eventos)
+    total_fotos = sum(evento.total_fotos for evento in eventos)
+    almacenamiento_usado = sum(
+        evento.almacenamiento_usado for evento in eventos
     )
+    eventos_por_estado = {
+        estado: sum(evento.estado == estado for evento in eventos)
+        for estado in (
+            Evento.Estado.ACTIVE,
+            Evento.Estado.DRAFT,
+            Evento.Estado.CLOSED,
+            Evento.Estado.ARCHIVED,
+        )
+    }
 
     porcentaje_almacenamiento = (
         almacenamiento_usado
         / MAX_STORAGE_PRUEBAS
         * 100
     )
-
-    for evento in eventos:
-        fotos_evento = Foto.objects.filter(
-            evento=evento,
-            eliminada_at__isnull=True,
-        )
-
-        evento.total_fotos = fotos_evento.count()
-
-        evento.almacenamiento_usado = (
-            fotos_evento
-            .aggregate(total=Sum("tamaño"))
-            .get("total")
-            or 0
-        )
-
-        evento.porcentaje_fotos = (
-            evento.total_fotos
-            / MAX_FOTOS_POR_EVENTO
-            * 100
-        )
-
-        evento.porcentaje_almacenamiento = (
-            evento.almacenamiento_usado
-            / MAX_STORAGE_POR_EVENTO
-            * 100
-        )
 
     return render(
         request,
@@ -1796,6 +1816,7 @@ def dashboard(request):
             "almacenamiento_usado": almacenamiento_usado,
             "porcentaje_almacenamiento": porcentaje_almacenamiento,
             "max_storage_pruebas": MAX_STORAGE_PRUEBAS,
+            "eventos_por_estado": eventos_por_estado,
         },
     )
 
@@ -1805,37 +1826,9 @@ def dashboard_anfitrion(request):
     if request.user.is_superuser:
         return redirect("dashboard")
 
-    eventos = Evento.objects.filter(
-        anfitriones=request.user,
+    eventos = _eventos_para_dashboard(
+        Evento.objects.filter(anfitriones=request.user)
     )
-
-    for evento in eventos:
-
-        fotos_evento = Foto.objects.filter(
-            evento=evento,
-            eliminada_at__isnull=True,
-        )
-
-        evento.total_fotos = fotos_evento.count()
-
-        evento.almacenamiento_usado = (
-            fotos_evento
-            .aggregate(total=Sum("tamaño"))
-            .get("total")
-            or 0
-        )
-
-        evento.porcentaje_fotos = (
-            evento.total_fotos
-            / MAX_FOTOS_POR_EVENTO
-            * 100
-        )
-
-        evento.porcentaje_almacenamiento = (
-            evento.almacenamiento_usado
-            / MAX_STORAGE_POR_EVENTO
-            * 100
-        )
 
     return render(
         request,
