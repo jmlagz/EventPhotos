@@ -93,6 +93,19 @@
         .recuperar a:hover {
             text-decoration: underline;
         }
+
+        .registro {
+            margin: 14px 0 0;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .registro a {
+            color: #555;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
     </style>
 </head>
 
@@ -111,7 +124,7 @@
             {% csrf_token %}
 
            <label for="username">
-                Nombre de usuario
+                Correo electrónico
             </label>
 
             <p class="ayuda-usuario">
@@ -165,6 +178,13 @@
                     ¿Olvidaste tu contraseña?
                 </a>
             </p>
+
+            {% if registro_disponible %}
+                <p class="registro">
+                    ¿Aún no tienes cuenta?
+                    <a href="{% url 'registro_publico' %}">Crear cuenta</a>
+                </p>
+            {% endif %}
 
         </form>
 

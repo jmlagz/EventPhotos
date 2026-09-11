@@ -375,3 +375,52 @@ class InactiveLoginTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tu cuenta todavía necesita verificación")
         self.assertNotContains(response, reverse("reenviar_activacion"))
+
+
+class LoginSignupLinkTests(TestCase):
+    @override_settings(SELF_SERVICE_ENABLED=True)
+    def test_enabled_flag_shows_signup_link_with_public_registration_url(self):
+        response = self.client.get(reverse("login_anfitrion"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Correo electrónico")
+        self.assertContains(response, "¿Aún no tienes cuenta?")
+        self.assertContains(
+            response,
+            f'href="{reverse("registro_publico")}"',
+        )
+        self.assertContains(response, "Crear cuenta")
+        self.assertNotContains(response, "Nombre de usuario")
+
+    @override_settings(SELF_SERVICE_ENABLED=False)
+    def test_disabled_flag_hides_signup_link(self):
+        response = self.client.get(reverse("login_anfitrion"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "¿Aún no tienes cuenta?")
+        self.assertNotContains(response, "Crear cuenta")
+        self.assertNotContains(
+            response,
+            f'href="{reverse("registro_publico")}"',
+        )
+
+    @override_settings(
+        SELF_SERVICE_ENABLED=False,
+        PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
+    )
+    def test_existing_active_login_behavior_is_unchanged(self):
+        usuario = User.objects.create_user(
+            username="active-login@example.com",
+            email="active-login@example.com",
+            password="test-password",
+        )
+
+        response = self.client.post(
+            reverse("login_anfitrion"),
+            {
+                "username": usuario.username,
+                "password": "test-password",
+            },
+        )
+
+        self.assertRedirects(response, reverse("dashboard_anfitrion"))

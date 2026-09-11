@@ -553,6 +553,7 @@ def login_anfitrion(request):
                         )
                     ),
                     "cuenta_pendiente": settings.SELF_SERVICE_ENABLED,
+                    "registro_disponible": settings.SELF_SERVICE_ENABLED,
                 },
             )
 
@@ -563,6 +564,7 @@ def login_anfitrion(request):
             {
                 "error":
                     "Usuario/Correo o contraseña incorrectos.",
+                "registro_disponible": settings.SELF_SERVICE_ENABLED,
             },
         )
 
@@ -570,6 +572,7 @@ def login_anfitrion(request):
     return render(
         request,
         "eventos/login.html",
+        {"registro_disponible": settings.SELF_SERVICE_ENABLED},
     )
 
 
