@@ -10,7 +10,9 @@
                 src="{{ evento.imagen_portada_url }}"
                 alt=""
                 loading="lazy"
+                onerror="this.hidden=true; this.nextElementSibling.hidden=false;"
             >
+            <div class="event-cover-fallback" aria-hidden="true" hidden>📷</div>
         {% else %}
             <div class="event-cover-fallback" aria-hidden="true">📷</div>
         {% endif %}

@@ -127,10 +127,19 @@ class DashboardListPolishTests(TestCase):
         self.client.force_login(self.host)
 
         response = self.client.get(reverse("dashboard_anfitrion"))
+        rendered = response.content.decode()
 
         self.assertContains(response, "https://signed.test/cover.webp")
         self.assertContains(response, "event-cover-fallback")
         self.assertNotContains(response, "eventos/private/cover.webp")
+        self.assertIn(
+            'onerror="this.hidden=true; this.nextElementSibling.hidden=false;"',
+            rendered,
+        )
+        self.assertIn(
+            'class="event-cover-fallback" aria-hidden="true" hidden',
+            rendered,
+        )
         signer.assert_called_once_with("eventos/private/cover.webp")
 
     @patch("eventos.views.generar_url_lectura")
