@@ -1,6 +1,8 @@
 from datetime import date
+from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import connection
 from django.test import TestCase, override_settings
@@ -159,3 +161,16 @@ class DashboardListPolishTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("dashboard_anfitrion"))
         self.assertRedirects(response, reverse("dashboard"))
+
+    def test_card_secondary_actions_have_touch_sized_targets(self):
+        styles = Path(
+            settings.BASE_DIR,
+            "eventos",
+            "static",
+            "eventos",
+            "css",
+            "dashboard-lists.css",
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(".event-secondary-link", styles)
+        self.assertIn("min-height: 44px;", styles)
