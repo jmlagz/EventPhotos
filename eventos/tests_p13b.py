@@ -14,6 +14,7 @@ from .models import AceptacionLegal, Evento, InvitacionUsuario
     LEGAL_PRIVACY_VERSION="privacy-test-v1",
     LEGAL_TERMS_URL="https://legal.test/terminos",
     LEGAL_PRIVACY_URL="https://legal.test/privacidad",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
 )
 class RegistroPublicoTests(TestCase):

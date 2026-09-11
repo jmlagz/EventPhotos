@@ -1,0 +1,11 @@
+Hola {{ usuario.first_name|default:"" }},
+
+Activa tu cuenta de EventPhotos para verificar tu correo y continuar.
+
+{{ enlace_activacion }}
+
+Este enlace vence en {{ expiration_hours }} horas.
+
+Si no solicitaste esta cuenta, puedes ignorar este mensaje.
+
+EventPhotos

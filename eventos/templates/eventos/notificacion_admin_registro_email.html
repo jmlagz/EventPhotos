@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="es">
+<body>
+    <h1>Nuevo usuario verificado en EventPhotos</h1>
+    <p><strong>Nombre:</strong> {{ usuario.get_full_name|default:"Sin nombre" }}</p>
+    <p><strong>Correo:</strong> {{ usuario.email }}</p>
+    <p><strong>Fecha de activación:</strong> {{ activated_at|date:"c" }}</p>
+    <p><strong>Estado:</strong> verificado</p>
+</body>
+</html>

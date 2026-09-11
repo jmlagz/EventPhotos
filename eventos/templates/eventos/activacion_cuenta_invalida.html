@@ -1,0 +1,21 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Enlace no válido - EventPhotos{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:560px;margin:40px auto;padding:32px 24px;text-align:center;">
+    <h1>Este enlace ya no es válido o ha expirado</h1>
+    <p style="color:var(--color-text-secondary);">
+        Puedes solicitar un nuevo enlace de activación o iniciar sesión si tu
+        cuenta ya fue verificada.
+    </p>
+    {% if reenviar_disponible %}
+        <p>
+            <a class="button" href="{% url 'reenviar_activacion' %}">
+                Solicitar un nuevo enlace
+            </a>
+        </p>
+    {% endif %}
+    <a href="{% url 'login_anfitrion' %}">Ir a iniciar sesión</a>
+</section>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Reenviar activación - EventPhotos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .resend-email input {
+        width: 100%;
+        min-height: 48px;
+        padding: 11px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:560px;margin:40px auto;padding:32px 24px;">
+    <h1>Solicita un nuevo enlace</h1>
+    <p style="color:var(--color-text-secondary);">
+        Escribe el correo que utilizaste para crear tu cuenta.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="resend-email" style="margin:22px 0;">
+            <label for="{{ form.email.id_for_label }}" style="display:block;margin-bottom:7px;font-weight:700;">
+                {{ form.email.label }}
+            </label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <div class="alert alert-error" role="alert" style="margin-top:8px;">
+                    {{ form.email.errors }}
+                </div>
+            {% endif %}
+        </div>
+        <button class="button" type="submit">Enviar enlace</button>
+    </form>
+</section>
+{% endblock %}

@@ -39,8 +39,12 @@
     <div class="pending-mark" aria-hidden="true">✓</div>
     <h1 id="pending-title">Tu cuenta fue creada</h1>
     <p>
-        La cuenta está pendiente de activación. Todavía no podrás iniciar
-        sesión. Te avisaremos cuando puedas continuar.
+        Revisa tu correo y abre el enlace que te enviamos para activar tu
+        cuenta. El enlace tiene una vigencia limitada.
+    </p>
+    <p>
+        ¿No recibiste el correo?
+        <a href="{% url 'reenviar_activacion' %}">Solicita un nuevo enlace</a>.
     </p>
     <p>
         Si ya tenías una cuenta con este correo, puedes

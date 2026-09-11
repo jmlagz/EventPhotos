@@ -1,0 +1,16 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Solicitud recibida - EventPhotos{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:560px;margin:40px auto;padding:32px 24px;text-align:center;">
+    <h1>Revisa tu correo</h1>
+    <p style="color:var(--color-text-secondary);">
+        Si existe una cuenta pendiente con ese correo, enviaremos un nuevo
+        enlace de activación.
+    </p>
+    <a class="button button-secondary" href="{% url 'login_anfitrion' %}">
+        Volver a iniciar sesión
+    </a>
+</section>
+{% endblock %}

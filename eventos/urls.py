@@ -31,6 +31,24 @@ urlpatterns = [
     ),
 
     path(
+        "activar/<uidb64>/<str:token>/",
+        views.activar_cuenta_publica,
+        name="activar_cuenta_publica",
+    ),
+
+    path(
+        "reenviar-activacion/",
+        views.reenviar_activacion,
+        name="reenviar_activacion",
+    ),
+
+    path(
+        "reenviar-activacion/enviado/",
+        views.reenviar_activacion_enviado,
+        name="reenviar_activacion_enviado",
+    ),
+
+    path(
         "password-reset/",
         views.password_reset_request,
         name="password_reset",
@@ -255,5 +273,8 @@ urlpatterns = [
         views.activar_cuenta,
         name="activar_cuenta",
     ),
+
+    path("terminos/", views.terminos_servicio, name="terminos_servicio"),
+    path("privacidad/", views.aviso_privacidad, name="aviso_privacidad"),
 
 ]

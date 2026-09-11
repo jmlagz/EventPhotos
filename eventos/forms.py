@@ -393,3 +393,19 @@ class RegistroPublicoForm(forms.Form):
                     self.add_error("password", exc)
 
         return cleaned_data
+
+
+class ReenviarActivacionForm(forms.Form):
+    email = forms.EmailField(
+        label="Correo electrónico",
+        max_length=150,
+        help_text="Escribe el correo que utilizaste para crear tu cuenta.",
+        widget=forms.EmailInput(attrs={"autocomplete": "email"}),
+        error_messages={
+            "required": "Este campo es obligatorio.",
+            "invalid": "Escribe un correo electrónico válido.",
+        },
+    )
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()

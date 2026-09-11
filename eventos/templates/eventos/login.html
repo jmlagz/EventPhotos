@@ -145,6 +145,14 @@
                 </div>
             {% endif %}
 
+            {% if cuenta_pendiente %}
+                <p class="recuperar">
+                    <a href="{% url 'reenviar_activacion' %}">
+                        Solicitar un nuevo enlace
+                    </a>
+                </p>
+            {% endif %}
+
             <button
                 type="submit"
                 class="boton"

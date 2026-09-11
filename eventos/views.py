@@ -38,10 +38,12 @@ from .limites import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
+from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.http import require_GET, require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib.auth.views import (
     PasswordResetView,
     PasswordResetDoneView,
@@ -80,11 +82,17 @@ from .forms import (
     EventoTemporalForm,
     UsuarioForm,
     ActivarCuentaForm,
+    ReenviarActivacionForm,
     RegistroPublicoForm,
 )
 from .services.account_registration import (
     EmailYaRegistrado,
     registrar_usuario_publico,
+)
+from .services.account_activation import (
+    account_activation_token_generator,
+    enviar_email_activacion,
+    enviar_notificacion_admin_activacion,
 )
 from .services.event_configuration import (
     actualizar_evento_configurable,
@@ -182,6 +190,12 @@ def _respuesta_intent_confirmado(upload_intent):
         }
     )
 
+def terminos_servicio(request):
+    return render(request, "eventos/terminos_servicio.html")
+
+
+def aviso_privacidad(request):
+    return render(request, "eventos/aviso_privacidad.html")
 
 def contexto_ciclo_temporal(evento):
     event_timezone = None
@@ -281,7 +295,7 @@ def registro_publico(request):
         if form.is_valid():
             if not form.email_ya_existe:
                 try:
-                    registrar_usuario_publico(
+                    usuario = registrar_usuario_publico(
                         first_name=form.cleaned_data["first_name"],
                         last_name=form.cleaned_data["last_name"],
                         email=form.cleaned_data["email"],
@@ -291,6 +305,15 @@ def registro_publico(request):
                     )
                 except EmailYaRegistrado:
                     pass
+                else:
+                    try:
+                        enviar_email_activacion(request, usuario)
+                    except Exception as exc:
+                        log_operation(
+                            "signup_activation_email_failed",
+                            user_id=usuario.pk,
+                            error_class=type(exc).__name__,
+                        )
             return redirect("registro_publico_pendiente")
     else:
         form = RegistroPublicoForm()
@@ -308,6 +331,126 @@ def registro_publico(request):
 
 def registro_publico_pendiente(request):
     return render(request, "eventos/registro_publico_pendiente.html")
+
+
+def _usuario_activacion(uidb64):
+    try:
+        user_id = urlsafe_base64_decode(uidb64).decode()
+        return User.objects.get(pk=user_id)
+    except (
+        TypeError,
+        ValueError,
+        OverflowError,
+        UnicodeDecodeError,
+        User.DoesNotExist,
+    ):
+        return None
+
+
+def activar_cuenta_publica(request, uidb64, token):
+    usuario = _usuario_activacion(uidb64)
+    token_valido = (
+        usuario is not None
+        and not usuario.is_active
+        and usuario.aceptaciones_legales.exists()
+        and account_activation_token_generator.check_token(usuario, token)
+    )
+    if not token_valido:
+        return render(
+            request,
+            "eventos/activacion_cuenta_invalida.html",
+            {"reenviar_disponible": settings.SELF_SERVICE_ENABLED},
+        )
+
+    activacion_realizada = False
+    with transaction.atomic():
+        usuario = User.objects.select_for_update().get(pk=usuario.pk)
+        if (
+            not usuario.is_active
+            and usuario.aceptaciones_legales.exists()
+            and account_activation_token_generator.check_token(usuario, token)
+        ):
+            usuario.is_active = True
+            usuario.save(update_fields=["is_active"])
+            activacion_realizada = True
+
+    if not activacion_realizada:
+        return render(
+            request,
+            "eventos/activacion_cuenta_invalida.html",
+            {"reenviar_disponible": settings.SELF_SERVICE_ENABLED},
+        )
+
+    activated_at = timezone.now()
+    login(
+        request,
+        usuario,
+        backend="django.contrib.auth.backends.ModelBackend",
+    )
+    try:
+        enviar_notificacion_admin_activacion(usuario, activated_at)
+    except Exception as exc:
+        log_operation(
+            "signup_admin_notification_failed",
+            user_id=usuario.pk,
+            error_class=type(exc).__name__,
+        )
+
+    messages.success(request, "Tu cuenta fue verificada correctamente.")
+    return redirect("dashboard_anfitrion")
+
+
+def _puede_reenviar_activacion(request):
+    now_timestamp = int(timezone.now().timestamp())
+    previous = request.session.get("activation_resend_requested_at")
+    request.session["activation_resend_requested_at"] = now_timestamp
+    if not isinstance(previous, int):
+        return True
+    return (
+        now_timestamp - previous
+        >= settings.SELF_SERVICE_ACTIVATION_RESEND_COOLDOWN_SECONDS
+    )
+
+
+def reenviar_activacion(request):
+    if not settings.SELF_SERVICE_ENABLED:
+        raise Http404
+
+    if request.method == "POST":
+        form = ReenviarActivacionForm(request.POST)
+        if form.is_valid():
+            if _puede_reenviar_activacion(request):
+                usuario = (
+                    User.objects.filter(
+                        email__iexact=form.cleaned_data["email"],
+                        is_active=False,
+                        aceptaciones_legales__isnull=False,
+                    )
+                    .distinct()
+                    .first()
+                )
+                if usuario is not None:
+                    try:
+                        enviar_email_activacion(request, usuario)
+                    except Exception as exc:
+                        log_operation(
+                            "signup_activation_resend_failed",
+                            user_id=usuario.pk,
+                            error_class=type(exc).__name__,
+                        )
+            return redirect("reenviar_activacion_enviado")
+    else:
+        form = ReenviarActivacionForm()
+
+    return render(
+        request,
+        "eventos/reenviar_activacion.html",
+        {"form": form},
+    )
+
+
+def reenviar_activacion_enviado(request):
+    return render(request, "eventos/reenviar_activacion_enviado.html")
 
 def login_anfitrion(request):
 
@@ -381,6 +524,36 @@ def login_anfitrion(request):
 
             return redirect(
                 "dashboard_anfitrion",
+            )
+
+
+        usuario_inactivo = (
+            User.objects.filter(
+                username__iexact=username,
+                is_active=False,
+                aceptaciones_legales__isnull=False,
+            )
+            .distinct()
+            .first()
+        )
+        if (
+            usuario_inactivo is not None
+            and usuario_inactivo.check_password(password)
+        ):
+            return render(
+                request,
+                "eventos/login.html",
+                {
+                    "error": (
+                        "Tu cuenta todavía necesita verificación. "
+                        + (
+                            "Revisa tu correo o solicita un nuevo enlace."
+                            if settings.SELF_SERVICE_ENABLED
+                            else "Revisa el correo que recibiste."
+                        )
+                    ),
+                    "cuenta_pendiente": settings.SELF_SERVICE_ENABLED,
+                },
             )
 
 
