@@ -229,6 +229,10 @@
     font-size: 32px;
 }
 
+.empty-state p {
+    margin: 0 0 18px;
+}
+
 @media (max-width: 700px) {
     .dashboard-header {
         flex-direction: column;

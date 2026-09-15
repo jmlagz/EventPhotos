@@ -27,6 +27,11 @@ class Evento(models.Model):
         CLOSED = "closed", "Cerrado"
         ARCHIVED = "archived", "Archivado"
 
+    class CreationSource(models.TextChoices):
+        LEGACY = "legacy", "Legacy"
+        ADMIN = "admin", "Administración"
+        SELF_SERVICE = "self_service", "Autoservicio"
+
     nombre = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
 
@@ -36,6 +41,22 @@ class Evento(models.Model):
         User,
         related_name="eventos_asignados",
         blank=True,
+    )
+
+    creation_source = models.CharField(
+        max_length=20,
+        choices=CreationSource.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    self_service_created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="eventos_autoservicio_creados",
     )
 
     tipo = models.CharField(

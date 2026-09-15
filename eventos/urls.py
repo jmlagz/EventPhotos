@@ -103,6 +103,12 @@ urlpatterns = [
     ),
 
     path(
+        "mis-eventos/crear/",
+        views.crear_evento_autoservicio_view,
+        name="crear_evento_autoservicio",
+    ),
+
+    path(
         "fotos/<slug:slug>/",
         views.evento_publico,
         name="evento_publico",

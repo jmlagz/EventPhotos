@@ -77,6 +77,7 @@ from .upload_quota import reservas_upload as _reservas_upload
 
 from .forms import (
     AsignarAnfitrionForm,
+    EventoAutoservicioForm,
     EventoEdicionForm,
     EventoForm,
     EventoTemporalForm,
@@ -101,6 +102,10 @@ from .services.event_configuration import (
     desasignar_anfitrion,
     evaluar_checklist,
     validar_activacion,
+)
+from .services.event_self_service import (
+    LimiteEventosAutoservicioAlcanzado,
+    crear_evento_autoservicio,
 )
 
 def obtener_uploader_hash(request):
@@ -2072,13 +2077,75 @@ def dashboard_anfitrion(request):
     eventos = _eventos_para_dashboard(
         Evento.objects.filter(anfitriones=request.user)
     )
+    puede_crear_evento_autoservicio = (
+        settings.SELF_SERVICE_ENABLED
+        and request.user.is_active
+        and not Evento.objects.filter(
+            self_service_created_by=request.user
+        ).exists()
+    )
 
     return render(
         request,
         "eventos/dashboard_anfitrion.html",
         {
             "eventos": eventos,
+            "puede_crear_evento_autoservicio": (
+                puede_crear_evento_autoservicio
+            ),
         },
+    )
+
+
+@login_required
+def crear_evento_autoservicio_view(request):
+    if not settings.SELF_SERVICE_ENABLED:
+        raise Http404
+
+    if request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para crear eventos por autoservicio.",
+            status=403,
+        )
+
+    if Evento.objects.filter(
+        self_service_created_by=request.user
+    ).exists():
+        messages.info(
+            request,
+            "Ya creaste el evento disponible para esta cuenta.",
+        )
+        return redirect("dashboard_anfitrion")
+
+    if request.method == "POST":
+        form = EventoAutoservicioForm(request.POST)
+        if form.is_valid():
+            try:
+                evento = crear_evento_autoservicio(
+                    usuario=request.user,
+                    nombre=form.cleaned_data["nombre"],
+                    tipo=form.cleaned_data["tipo"],
+                    fecha=form.cleaned_data["fecha"],
+                )
+            except LimiteEventosAutoservicioAlcanzado:
+                messages.info(
+                    request,
+                    "Ya creaste el evento disponible para esta cuenta.",
+                )
+                return redirect("dashboard_anfitrion")
+
+            messages.success(
+                request,
+                "Evento creado. Completa su configuración para publicarlo.",
+            )
+            return redirect("dashboard_evento", slug=evento.slug)
+    else:
+        form = EventoAutoservicioForm()
+
+    return render(
+        request,
+        "eventos/crear_evento_autoservicio.html",
+        {"form": form},
     )
 
 @login_required
@@ -2103,6 +2170,7 @@ def crear_evento(request):
                 mensaje_bienvenida=form.cleaned_data["mensaje_bienvenida"],
                 timezone_name=form.cleaned_data["timezone"],
                 duracion_efectiva_meses=form.cleaned_data["vigencia_meses"],
+                creation_source=Evento.CreationSource.ADMIN,
             )
 
             messages.success(

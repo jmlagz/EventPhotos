@@ -21,6 +21,11 @@
             <h2 id="events-title">Mis eventos</h2>
             <p class="section-description">Los eventos activos aparecen primero.</p>
         </div>
+        {% if eventos and puede_crear_evento_autoservicio %}
+            <a class="button" href="{% url 'crear_evento_autoservicio' %}">
+                Crear mi evento
+            </a>
+        {% endif %}
     </div>
 
     {% if eventos %}
@@ -32,7 +37,12 @@
     {% else %}
         <div class="card empty-state">
             <span class="empty-state-icon" aria-hidden="true">📅</span>
-            No tienes eventos asignados todavía.
+            <p>Aún no tienes eventos. Empieza creando tu primer evento.</p>
+            {% if puede_crear_evento_autoservicio %}
+                <a class="button" href="{% url 'crear_evento_autoservicio' %}">
+                    Crear mi evento
+                </a>
+            {% endif %}
         </div>
     {% endif %}
 </section>

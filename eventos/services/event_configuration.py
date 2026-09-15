@@ -111,6 +111,8 @@ def crear_evento_configurable(
     mensaje_bienvenida,
     timezone_name,
     duracion_efectiva_meses,
+    creation_source=None,
+    self_service_created_by=None,
 ):
     evento = Evento(
         nombre=nombre,
@@ -121,6 +123,8 @@ def crear_evento_configurable(
         mensaje_bienvenida=mensaje_bienvenida,
         estado=Evento.Estado.DRAFT,
         configuracion_version=CONFIGURACION_VERSION_ACTUAL,
+        creation_source=creation_source,
+        self_service_created_by=self_service_created_by,
     )
     materializar_temporalidad(
         evento,

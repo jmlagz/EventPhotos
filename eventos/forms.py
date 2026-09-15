@@ -78,6 +78,15 @@ class EventoForm(forms.ModelForm):
         return timezone_name
 
 
+class EventoAutoservicioForm(forms.ModelForm):
+    class Meta:
+        model = Evento
+        fields = ["nombre", "tipo", "fecha"]
+        widgets = {
+            "fecha": forms.DateInput(attrs={"type": "date"}),
+        }
+
+
 class EventoEdicionForm(EventoForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
