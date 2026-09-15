@@ -184,7 +184,7 @@ class CreacionEventoAutoservicioTests(TestCase):
 
         response = self.client.get(reverse("dashboard_anfitrion"))
 
-        self.assertContains(response, "Crear mi evento")
+        self.assertContains(response, "Crear evento")
         self.assertContains(response, self.url)
         self.assertContains(response, "Empieza creando tu primer evento")
 
@@ -199,7 +199,7 @@ class CreacionEventoAutoservicioTests(TestCase):
 
         response = self.client.get(reverse("dashboard_anfitrion"))
 
-        self.assertNotContains(response, "Crear mi evento")
+        self.assertNotContains(response, "Crear evento")
 
     @override_settings(SELF_SERVICE_ENABLED=False)
     def test_flag_desactivado_oculta_cta_y_ruta(self):
@@ -208,7 +208,7 @@ class CreacionEventoAutoservicioTests(TestCase):
         dashboard = self.client.get(reverse("dashboard_anfitrion"))
         creation = self.client.get(self.url)
 
-        self.assertNotContains(dashboard, "Crear mi evento")
+        self.assertNotContains(dashboard, "Crear evento")
         self.assertEqual(creation.status_code, 404)
 
     def test_superusuario_conserva_dashboard_global_y_no_usa_autoservicio(self):

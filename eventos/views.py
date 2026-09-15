@@ -464,19 +464,6 @@ def login_anfitrion(request):
         if request.user.is_superuser:
             return redirect("dashboard")
 
-        eventos = Evento.objects.filter(
-            anfitriones=request.user,
-        )
-
-        if eventos.count() == 1:
-
-            evento = eventos.first()
-
-            return redirect(
-                "dashboard_evento",
-                slug=evento.slug,
-            )
-
         return redirect("dashboard_anfitrion")
 
 
@@ -510,22 +497,6 @@ def login_anfitrion(request):
 
             if usuario.is_superuser:
                 return redirect("dashboard")
-
-
-            eventos = Evento.objects.filter(
-                anfitriones=usuario,
-            )
-
-
-            if eventos.count() == 1:
-
-                evento = eventos.first()
-
-                return redirect(
-                    "dashboard_evento",
-                    slug=evento.slug,
-                )
-
 
             return redirect(
                 "dashboard_anfitrion",
@@ -2507,21 +2478,6 @@ def activar_cuenta(request, token):
 
                 return redirect(
                     "dashboard",
-                )
-
-
-            eventos = Evento.objects.filter(
-                anfitriones=usuario,
-            )
-
-
-            if eventos.count() == 1:
-
-                evento = eventos.first()
-
-                return redirect(
-                    "dashboard_evento",
-                    slug=evento.slug,
                 )
 
 

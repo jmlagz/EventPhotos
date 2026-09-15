@@ -23,7 +23,7 @@
         </div>
         {% if eventos and puede_crear_evento_autoservicio %}
             <a class="button" href="{% url 'crear_evento_autoservicio' %}">
-                Crear mi evento
+                Crear evento
             </a>
         {% endif %}
     </div>
@@ -40,7 +40,7 @@
             <p>Aún no tienes eventos. Empieza creando tu primer evento.</p>
             {% if puede_crear_evento_autoservicio %}
                 <a class="button" href="{% url 'crear_evento_autoservicio' %}">
-                    Crear mi evento
+                    Crear evento
                 </a>
             {% endif %}
         </div>
