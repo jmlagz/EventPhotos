@@ -393,6 +393,15 @@
                             {{ request.user.username }}
                         </span>
 
+                        {% if not request.user.is_superuser %}
+                            <a
+                                href="{% url 'mi_cuenta' %}"
+                                class="logout-link"
+                            >
+                                Mi cuenta
+                            </a>
+                        {% endif %}
+
                         <a
                             href="{% url 'logout_anfitrion' %}"
                             class="logout-link"

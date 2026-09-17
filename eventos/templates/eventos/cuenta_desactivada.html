@@ -1,0 +1,11 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Cuenta desactivada - EventPhotos{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 620px; margin: 0 auto; padding: 28px; text-align: center;">
+    <h1>Tu cuenta ha sido desactivada</h1>
+    <p>Tus datos y eventos no se han eliminado.</p>
+    <a class="button button-secondary" href="{% url 'login_anfitrion' %}">Volver al inicio de sesión</a>
+</section>
+{% endblock %}

@@ -2,6 +2,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django import forms
+from django.contrib.auth import password_validation
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import (
     validate_password,
@@ -85,6 +87,84 @@ class EventoAutoservicioForm(forms.ModelForm):
         widgets = {
             "fecha": forms.DateInput(attrs={"type": "date"}),
         }
+
+
+class PerfilCuentaForm(forms.Form):
+    first_name = forms.CharField(
+        label="Nombre",
+        max_length=150,
+        required=False,
+    )
+    last_name = forms.CharField(
+        label="Apellido",
+        max_length=150,
+        required=False,
+    )
+
+
+class PasswordChangeFormEspanol(PasswordChangeForm):
+    error_messages = {
+        **PasswordChangeForm.error_messages,
+        "password_mismatch": "Las dos contraseñas nuevas no coinciden.",
+        "password_incorrect": (
+            "La contraseña actual es incorrecta. Inténtalo de nuevo."
+        ),
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["old_password"].label = "Contraseña actual"
+        self.fields["new_password1"].label = "Nueva contraseña"
+        self.fields["new_password2"].label = "Confirmar nueva contraseña"
+        self.fields["old_password"].error_messages["required"] = (
+            "Escribe tu contraseña actual."
+        )
+        self.fields["new_password1"].error_messages["required"] = (
+            "Escribe una nueva contraseña."
+        )
+        self.fields["new_password2"].error_messages["required"] = (
+            "Confirma la nueva contraseña."
+        )
+        self.fields["new_password1"].help_text = (
+            "<ul>"
+            "<li>La contraseña no puede parecerse demasiado a tus datos personales.</li>"
+            "<li>La contraseña debe contener al menos 8 caracteres.</li>"
+            "<li>La contraseña no puede ser una contraseña de uso común.</li>"
+            "<li>La contraseña no puede ser completamente numérica.</li>"
+            "</ul>"
+        )
+        self.fields["new_password2"].help_text = (
+            "Escribe nuevamente la contraseña para confirmarla."
+        )
+
+    def validate_password_for_user(self, user, password_field_name="password2"):
+        password = self.cleaned_data.get(password_field_name)
+        if not password:
+            return
+
+        try:
+            password_validation.validate_password(password, user)
+        except forms.ValidationError as error:
+            mensajes = {
+                "password_too_similar": (
+                    "La contraseña se parece demasiado a tus datos personales."
+                ),
+                "password_too_short": (
+                    "La contraseña es demasiado corta. Debe contener al menos "
+                    "8 caracteres."
+                ),
+                "password_too_common": (
+                    "La contraseña es demasiado común."
+                ),
+                "password_entirely_numeric": (
+                    "La contraseña no puede ser completamente numérica."
+                ),
+            }
+            errores = [
+                mensajes.get(item.code, item.message)
+                for item in error.error_list
+            ]
+            self.add_error(password_field_name, forms.ValidationError(errores))
 
 
 class EventoEdicionForm(EventoForm):

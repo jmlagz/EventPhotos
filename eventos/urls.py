@@ -61,6 +61,30 @@ urlpatterns = [
     ),
 
     path(
+        "mi-cuenta/",
+        views.mi_cuenta,
+        name="mi_cuenta",
+    ),
+
+    path(
+        "mi-cuenta/cambiar-password/",
+        views.CambiarPasswordView.as_view(),
+        name="cambiar_password",
+    ),
+
+    path(
+        "mi-cuenta/desactivar/",
+        views.desactivar_cuenta,
+        name="desactivar_cuenta",
+    ),
+
+    path(
+        "mi-cuenta/desactivada/",
+        views.cuenta_desactivada,
+        name="cuenta_desactivada",
+    ),
+
+    path(
         "reset/<uidb64>/<token>/",
         views.password_reset_confirm,
         name="password_reset_confirm",

@@ -1,0 +1,75 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Mi cuenta - EventPhotos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .account-layout { max-width: 720px; margin: 0 auto; }
+    .account-header { margin-bottom: 24px; }
+    .account-header h1 { margin: 8px 0; }
+    .account-header p { color: var(--color-text-secondary); }
+    .account-card { padding: 28px; margin-bottom: 20px; }
+    .account-card h2 { margin-top: 0; }
+    .account-identifier { margin-bottom: 22px; }
+    .account-identifier span { display: block; color: var(--color-text-secondary); font-size: 13px; }
+    .account-identifier strong { overflow-wrap: anywhere; }
+    .form-field { margin-bottom: 18px; }
+    .form-field label { display: block; margin-bottom: 6px; font-weight: 600; }
+    .form-field input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+    .form-errors { margin-top: 6px; color: var(--color-danger); }
+    .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .danger-card { border-color: var(--color-danger); }
+    .danger-card p { color: var(--color-text-secondary); }
+
+    @media (max-width: 700px) {
+        .account-card { padding: 20px; }
+        .account-actions, .account-actions .button { width: 100%; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="account-layout">
+    <header class="account-header">
+        <a href="{% url 'dashboard_anfitrion' %}">← Volver a Mis eventos</a>
+        <h1>Mi cuenta</h1>
+        <p>Administra tus datos personales y la seguridad de tu cuenta.</p>
+    </header>
+
+    <section class="card account-card">
+        <h2>Perfil</h2>
+        <div class="account-identifier">
+            <span>Correo electrónico</span>
+            <strong>{{ request.user.email|default:request.user.username }}</strong>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-field">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="form-errors" role="alert">{{ field.errors }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <button class="button" type="submit">Guardar cambios</button>
+        </form>
+    </section>
+
+    <section class="card account-card">
+        <h2>Seguridad</h2>
+        <div class="account-actions">
+            <a class="button button-secondary" href="{% url 'cambiar_password' %}">Cambiar contraseña</a>
+            <a class="button button-secondary" href="{% url 'logout_anfitrion' %}">Cerrar sesión</a>
+        </div>
+    </section>
+
+    <section class="card account-card danger-card">
+        <h2>Desactivar cuenta</h2>
+        <p>Desactivar tu cuenta impedirá que vuelvas a iniciar sesión. Tus datos y eventos no se eliminarán.</p>
+        <a class="button button-danger" href="{% url 'desactivar_cuenta' %}">Desactivar cuenta</a>
+    </section>
+</div>
+{% endblock %}

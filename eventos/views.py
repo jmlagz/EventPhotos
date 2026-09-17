@@ -17,7 +17,7 @@ from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
 from django.core.exceptions import ValidationError
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.template.loader import render_to_string
 
 from django.contrib.auth.views import (
@@ -25,6 +25,7 @@ from django.contrib.auth.views import (
     PasswordResetDoneView,
     PasswordResetConfirmView,
     PasswordResetCompleteView,
+    PasswordChangeView,
 )
 
 from .limites import (
@@ -80,6 +81,8 @@ from .forms import (
     EventoAutoservicioForm,
     EventoEdicionForm,
     EventoForm,
+    PerfilCuentaForm,
+    PasswordChangeFormEspanol,
     EventoTemporalForm,
     UsuarioForm,
     ActivarCuentaForm,
@@ -266,6 +269,24 @@ password_reset_confirm = PasswordResetConfirmView.as_view(
 password_reset_complete = PasswordResetCompleteView.as_view(
     template_name="eventos/password_reset_complete.html",
 )
+
+
+class CambiarPasswordView(PasswordChangeView):
+    template_name = "eventos/cambiar_password.html"
+    form_class = PasswordChangeFormEspanol
+    success_url = reverse_lazy("mi_cuenta")
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_superuser:
+            return HttpResponse(
+                "No tienes permiso para usar este flujo.",
+                status=403,
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(request=self.request, message="Contraseña actualizada.")
+        return super().form_valid(form)
 
 
 def _legal_url_es_segura(value):
@@ -556,6 +577,64 @@ def login_anfitrion(request):
 def logout_anfitrion(request):
     logout(request)
     return redirect("login_anfitrion")
+
+
+@login_required
+def mi_cuenta(request):
+    if request.user.is_superuser:
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        form = PerfilCuentaForm(request.POST)
+        if form.is_valid():
+            request.user.first_name = form.cleaned_data["first_name"]
+            request.user.last_name = form.cleaned_data["last_name"]
+            request.user.save(update_fields=["first_name", "last_name"])
+            messages.success(request, "Tu perfil se actualizó correctamente.")
+            return redirect("mi_cuenta")
+    else:
+        form = PerfilCuentaForm(
+            initial={
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
+            }
+        )
+
+    return render(
+        request,
+        "eventos/mi_cuenta.html",
+        {"form": form},
+    )
+
+
+@login_required
+def desactivar_cuenta(request):
+    if request.user.is_superuser:
+        return HttpResponse(
+            "No tienes permiso para usar este flujo.",
+            status=403,
+        )
+
+    if request.method == "POST":
+        if request.POST.get("confirmar") != "si":
+            return render(
+                request,
+                "eventos/desactivar_cuenta.html",
+                {"confirmacion_requerida": True},
+                status=400,
+            )
+
+        request.user.is_active = False
+        request.user.save(update_fields=["is_active"])
+        logout(request)
+        return redirect("cuenta_desactivada")
+
+    return render(request, "eventos/desactivar_cuenta.html")
+
+
+@require_GET
+def cuenta_desactivada(request):
+    return render(request, "eventos/cuenta_desactivada.html")
 
 def _contexto_identidad_visual(evento):
     imagen_portada_url = None
