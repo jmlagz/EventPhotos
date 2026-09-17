@@ -262,6 +262,18 @@
             transform: translateY(1px);
         }
 
+        .logout-form {
+            margin: 0;
+        }
+
+        .logout-button {
+            padding: 0;
+            border: 0;
+            background: none;
+            font: inherit;
+            cursor: pointer;
+        }
+
         .button:disabled,
         .button-disabled {
             border-color: var(--color-border);
@@ -402,12 +414,16 @@
                             </a>
                         {% endif %}
 
-                        <a
-                            href="{% url 'logout_anfitrion' %}"
-                            class="logout-link"
+                        <form
+                            method="post"
+                            action="{% url 'logout_anfitrion' %}"
+                            class="logout-form"
                         >
-                            Cerrar sesión
-                        </a>
+                            {% csrf_token %}
+                            <button type="submit" class="logout-link logout-button">
+                                Cerrar sesión
+                            </button>
+                        </form>
 
                     </div>
 

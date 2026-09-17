@@ -18,12 +18,13 @@
     .form-field input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
     .form-errors { margin-top: 6px; color: var(--color-danger); }
     .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .account-actions form { display: flex; margin: 0; }
     .danger-card { border-color: var(--color-danger); }
     .danger-card p { color: var(--color-text-secondary); }
 
     @media (max-width: 700px) {
         .account-card { padding: 20px; }
-        .account-actions, .account-actions .button { width: 100%; }
+        .account-actions, .account-actions form, .account-actions .button { width: 100%; }
     }
 </style>
 {% endblock %}
@@ -62,7 +63,10 @@
         <h2>Seguridad</h2>
         <div class="account-actions">
             <a class="button button-secondary" href="{% url 'cambiar_password' %}">Cambiar contraseña</a>
-            <a class="button button-secondary" href="{% url 'logout_anfitrion' %}">Cerrar sesión</a>
+            <form method="post" action="{% url 'logout_anfitrion' %}">
+                {% csrf_token %}
+                <button class="button button-secondary" type="submit">Cerrar sesión</button>
+            </form>
         </div>
     </section>
 

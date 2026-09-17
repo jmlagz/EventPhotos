@@ -285,8 +285,13 @@ class CambiarPasswordView(PasswordChangeView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        log_operation(
+            "account_password_changed",
+            user_id=self.request.user.pk,
+        )
         messages.success(request=self.request, message="Contraseña actualizada.")
-        return super().form_valid(form)
+        return response
 
 
 def _legal_url_es_segura(value):
@@ -297,6 +302,18 @@ def _legal_url_es_segura(value):
     if parsed.scheme:
         return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
     return value.startswith("/") and not value.startswith("//")
+
+
+def _puede_registrarse_en_esta_sesion(request):
+    now_timestamp = int(timezone.now().timestamp())
+    previous = request.session.get("registration_submitted_at")
+    request.session["registration_submitted_at"] = now_timestamp
+    if not isinstance(previous, int):
+        return True
+    return (
+        now_timestamp - previous
+        >= settings.SELF_SERVICE_REGISTRATION_COOLDOWN_SECONDS
+    )
 
 
 def registro_publico(request):
@@ -319,6 +336,13 @@ def registro_publico(request):
     if request.method == "POST":
         form = RegistroPublicoForm(request.POST)
         if form.is_valid():
+            registro_permitido = _puede_registrarse_en_esta_sesion(request)
+            log_operation(
+                "signup_submitted",
+                cooldown_allowed=registro_permitido,
+            )
+            if not registro_permitido:
+                return redirect("registro_publico_pendiente")
             if not form.email_ya_existe:
                 try:
                     usuario = registrar_usuario_publico(
@@ -332,6 +356,10 @@ def registro_publico(request):
                 except EmailYaRegistrado:
                     pass
                 else:
+                    log_operation(
+                        "signup_user_created",
+                        user_id=usuario.pk,
+                    )
                     try:
                         enviar_email_activacion(request, usuario)
                     except Exception as exc:
@@ -339,6 +367,11 @@ def registro_publico(request):
                             "signup_activation_email_failed",
                             user_id=usuario.pk,
                             error_class=type(exc).__name__,
+                        )
+                    else:
+                        log_operation(
+                            "signup_activation_email_sent",
+                            user_id=usuario.pk,
                         )
             return redirect("registro_publico_pendiente")
     else:
@@ -382,6 +415,10 @@ def activar_cuenta_publica(request, uidb64, token):
         and account_activation_token_generator.check_token(usuario, token)
     )
     if not token_valido:
+        log_operation(
+            "signup_activation_replayed_or_invalid",
+            user_id=usuario.pk if usuario is not None else None,
+        )
         return render(
             request,
             "eventos/activacion_cuenta_invalida.html",
@@ -401,6 +438,10 @@ def activar_cuenta_publica(request, uidb64, token):
             activacion_realizada = True
 
     if not activacion_realizada:
+        log_operation(
+            "signup_activation_replayed_or_invalid",
+            user_id=usuario.pk,
+        )
         return render(
             request,
             "eventos/activacion_cuenta_invalida.html",
@@ -413,6 +454,7 @@ def activar_cuenta_publica(request, uidb64, token):
         usuario,
         backend="django.contrib.auth.backends.ModelBackend",
     )
+    log_operation("signup_activated", user_id=usuario.pk)
     try:
         enviar_notificacion_admin_activacion(usuario, activated_at)
     except Exception as exc:
@@ -445,7 +487,12 @@ def reenviar_activacion(request):
     if request.method == "POST":
         form = ReenviarActivacionForm(request.POST)
         if form.is_valid():
-            if _puede_reenviar_activacion(request):
+            reenvio_permitido = _puede_reenviar_activacion(request)
+            log_operation(
+                "signup_activation_resend_requested",
+                cooldown_allowed=reenvio_permitido,
+            )
+            if reenvio_permitido:
                 usuario = (
                     User.objects.filter(
                         email__iexact=form.cleaned_data["email"],
@@ -529,6 +576,7 @@ def login_anfitrion(request):
                 username__iexact=username,
                 is_active=False,
                 aceptaciones_legales__isnull=False,
+                last_login__isnull=True,
             )
             .distinct()
             .first()
@@ -574,6 +622,7 @@ def login_anfitrion(request):
 
 
 @login_required
+@require_POST
 def logout_anfitrion(request):
     logout(request)
     return redirect("login_anfitrion")
@@ -590,6 +639,10 @@ def mi_cuenta(request):
             request.user.first_name = form.cleaned_data["first_name"]
             request.user.last_name = form.cleaned_data["last_name"]
             request.user.save(update_fields=["first_name", "last_name"])
+            log_operation(
+                "account_profile_updated",
+                user_id=request.user.pk,
+            )
             messages.success(request, "Tu perfil se actualizó correctamente.")
             return redirect("mi_cuenta")
     else:
@@ -626,6 +679,7 @@ def desactivar_cuenta(request):
 
         request.user.is_active = False
         request.user.save(update_fields=["is_active"])
+        log_operation("account_deactivated", user_id=request.user.pk)
         logout(request)
         return redirect("cuenta_desactivada")
 
@@ -2183,6 +2237,12 @@ def crear_evento_autoservicio_view(request):
                     "Ya creaste el evento disponible para esta cuenta.",
                 )
                 return redirect("dashboard_anfitrion")
+
+            log_operation(
+                "self_service_event_created",
+                user_id=request.user.pk,
+                event_id=evento.pk,
+            )
 
             messages.success(
                 request,
