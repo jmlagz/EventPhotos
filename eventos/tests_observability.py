@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import date, timedelta
+import hashlib
 from io import StringIO
 from unittest.mock import patch
 
@@ -234,10 +235,15 @@ class UploadObservabilityLoggingTests(TestCase):
             estado=Evento.Estado.ACTIVE,
         )
         self.table = Mesa.objects.create(evento=self.event, numero=1)
+        self.uploader_token = "uploader-observability"
+        self.uploader_hash = hashlib.sha256(
+            self.uploader_token.encode("utf-8")
+        ).hexdigest()
         session = self.client.session
         session["mesa_id"] = self.table.id
         session["evento_id"] = self.event.id
         session["instrucciones_aceptadas"] = True
+        session["uploader_token"] = self.uploader_token
         session.save()
 
     def upload_url(self):
@@ -268,6 +274,7 @@ class UploadObservabilityLoggingTests(TestCase):
             content_type_declarado="image/jpeg",
             tamaño_declarado=1024,
             hash_declarado="b" * 64,
+            uploader_hash=self.uploader_hash,
             expires_at=timezone.now() + timedelta(minutes=5),
         )
         intent.object_key = (

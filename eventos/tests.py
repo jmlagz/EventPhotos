@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+import hashlib
 from threading import Barrier, Lock
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
@@ -554,6 +555,7 @@ class UploadIntentPresignTests(TestCase):
             estado=Evento.Estado.ACTIVE,
         )
         self.table = Mesa.objects.create(evento=self.event, numero=1)
+        self.uploader_token = "uploader-presign-principal"
         self.authorize_upload()
 
     def authorize_upload(self, client=None, consent=True):
@@ -561,6 +563,7 @@ class UploadIntentPresignTests(TestCase):
         session = client.session
         session["mesa_id"] = self.table.id
         session["evento_id"] = self.event.id
+        session["uploader_token"] = self.uploader_token
         if consent:
             session["instrucciones_aceptadas"] = True
         session.save()
@@ -579,6 +582,40 @@ class UploadIntentPresignTests(TestCase):
             "hash_sha256": hash_sha256,
             "tamaño": str(tamaño),
         }
+
+    def test_successful_table_consent_initializes_uploader_token(self):
+        client = Client()
+        table_url = reverse(
+            "mesa_publica",
+            args=[self.event.slug, self.table.token],
+        )
+        client.get(table_url)
+
+        response = client.post(table_url, {"acepto": "on"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(client.session.get("uploader_token"))
+
+    @patch("eventos.views.generar_url_subida", return_value="https://upload.test/")
+    def test_legacy_session_presign_creates_and_persists_uploader_hash(
+        self,
+        _generate_url,
+    ):
+        client = Client()
+        session = client.session
+        session["mesa_id"] = self.table.id
+        session["evento_id"] = self.event.id
+        session["instrucciones_aceptadas"] = True
+        session.save()
+
+        response = client.post(self.upload_url(), self.upload_data())
+
+        self.assertEqual(response.status_code, 200)
+        uploader_token = client.session["uploader_token"]
+        self.assertEqual(
+            UploadIntent.objects.get().uploader_hash,
+            hashlib.sha256(uploader_token.encode("utf-8")).hexdigest(),
+        )
 
     def create_pending_intent(
         self,
@@ -646,6 +683,10 @@ class UploadIntentPresignTests(TestCase):
         self.assertEqual(intent.evento, self.event)
         self.assertEqual(intent.mesa, self.table)
         self.assertEqual(intent.tamaño_declarado, 1024)
+        self.assertEqual(
+            intent.uploader_hash,
+            hashlib.sha256(self.uploader_token.encode("utf-8")).hexdigest(),
+        )
         self.assertIn(str(intent.id), intent.object_key)
         self.assertTrue(
             intent.object_key.startswith(
@@ -929,16 +970,22 @@ class UploadIntentConfirmationTests(TestCase):
             estado=Evento.Estado.ACTIVE,
         )
         self.table = Mesa.objects.create(evento=self.event, numero=1)
-        self.authorize_upload()
+        self.uploader_token = "uploader-confirmacion-principal"
+        self.uploader_hash = self.authorize_upload(
+            uploader_token=self.uploader_token,
+        )
 
-    def authorize_upload(self, client=None, table=None):
+    def authorize_upload(self, client=None, table=None, uploader_token=None):
         client = client or self.client
         table = table or self.table
+        uploader_token = uploader_token or self.uploader_token
         session = client.session
         session["mesa_id"] = table.id
         session["evento_id"] = table.evento_id
         session["instrucciones_aceptadas"] = True
+        session["uploader_token"] = uploader_token
         session.save()
+        return hashlib.sha256(uploader_token.encode("utf-8")).hexdigest()
 
     def create_intent(
         self,
@@ -950,6 +997,7 @@ class UploadIntentConfirmationTests(TestCase):
         hash_declarado="a" * 64,
         expires_at=None,
         legacy=False,
+        uploader_hash=...,
     ):
         event = event or self.event
         table = table or self.table
@@ -960,6 +1008,11 @@ class UploadIntentConfirmationTests(TestCase):
             content_type_declarado="image/jpeg",
             tamaño_declarado=tamaño,
             hash_declarado=hash_declarado,
+            uploader_hash=(
+                self.uploader_hash
+                if uploader_hash is ...
+                else uploader_hash
+            ),
             estado=estado,
             expires_at=(
                 expires_at
@@ -1021,6 +1074,8 @@ class UploadIntentConfirmationTests(TestCase):
         self.assertIsNotNone(intent.finalizing_at)
         self.assertEqual(Foto.objects.count(), 1)
         foto = Foto.objects.get()
+        self.assertEqual(intent.uploader_hash, self.uploader_hash)
+        self.assertEqual(foto.uploader_hash, intent.uploader_hash)
         self.assertEqual(foto.object_key, intent.final_object_key)
         self.assertNotEqual(foto.object_key, intent.object_key)
         copy_kwargs = r2.copy_object.call_args.kwargs
@@ -1045,6 +1100,35 @@ class UploadIntentConfirmationTests(TestCase):
             [intent.object_key, intent.final_object_key, intent.final_object_key],
         )
         r2.delete_object.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_confirmed_photo_remains_deletable_only_by_original_uploader(
+        self,
+        get_r2,
+    ):
+        intent = self.create_intent()
+        r2 = self.configure_r2(get_r2, intent)
+        confirmation = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+        foto_id = confirmation.json()["foto_id"]
+        delete_url = reverse(
+            "eliminar_foto",
+            args=[self.event.slug, foto_id],
+        )
+        other_client = Client()
+        self.authorize_upload(
+            client=other_client,
+            uploader_token="uploader-eliminacion-ajeno",
+        )
+
+        self.assertEqual(other_client.post(delete_url).status_code, 403)
+        self.assertEqual(self.client.post(delete_url).status_code, 200)
+        self.assertEqual(r2.delete_object.call_count, 1)
+        self.assertIsNotNone(
+            Foto.objects.get(pk=foto_id).eliminada_at,
+        )
 
     @patch("eventos.views.get_r2_client")
     def test_transient_copy_failure_keeps_intent_finalizing(self, get_r2):
@@ -1367,6 +1451,30 @@ class UploadIntentConfirmationTests(TestCase):
         get_r2.return_value.head_object.assert_not_called()
 
     @patch("eventos.views.get_r2_client")
+    def test_other_session_same_table_cannot_confirm_upload_intent(self, get_r2):
+        intent = self.create_intent()
+        other_client = Client()
+        self.authorize_upload(
+            client=other_client,
+            uploader_token="uploader-confirmacion-ajeno",
+        )
+
+        response = other_client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"error": "Intento de subida no válido."},
+        )
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.PENDING)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
     def test_cancelled_intent_cannot_be_confirmed(self, get_r2):
         intent = self.create_intent(estado=UploadIntent.Estado.CANCELLED)
 
@@ -1454,6 +1562,160 @@ class UploadIntentConfirmationTests(TestCase):
         )
         self.assertEqual(Foto.objects.count(), 1)
         self.assertEqual(r2.copy_object.call_count, 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_other_uploader_cannot_replay_confirmed_intent(self, get_r2):
+        intent = self.create_intent()
+        r2 = self.configure_r2(get_r2, intent)
+        self.assertEqual(
+            self.client.post(
+                self.confirmation_url(),
+                self.confirmation_data(intent),
+            ).status_code,
+            200,
+        )
+        other_client = Client()
+        self.authorize_upload(
+            client=other_client,
+            uploader_token="uploader-replay-ajeno",
+        )
+
+        response = other_client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Foto.objects.count(), 1)
+        self.assertEqual(r2.copy_object.call_count, 1)
+
+    @patch("eventos.views.get_r2_client")
+    def test_other_uploader_cannot_recover_finalizing_intent(self, get_r2):
+        intent = self.create_intent(estado=UploadIntent.Estado.FINALIZING)
+        intent.tamaño_real = 2048
+        intent.source_etag = f'"etag-{intent.id}"'
+        intent.finalizing_at = timezone.now()
+        intent.save(
+            update_fields=["tamaño_real", "source_etag", "finalizing_at"]
+        )
+        other_client = Client()
+        self.authorize_upload(
+            client=other_client,
+            uploader_token="uploader-finalizing-ajeno",
+        )
+
+        response = other_client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.FINALIZING)
+        self.assertFalse(Foto.objects.exists())
+        get_r2.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_legacy_pending_and_finalizing_without_owner_fail_closed(self, get_r2):
+        for estado in (
+            UploadIntent.Estado.PENDING,
+            UploadIntent.Estado.FINALIZING,
+        ):
+            with self.subTest(estado=estado):
+                intent = self.create_intent(
+                    estado=estado,
+                    uploader_hash=None,
+                    hash_declarado=(
+                        "b"
+                        if estado == UploadIntent.Estado.PENDING
+                        else "c"
+                    )
+                    * 64,
+                )
+                response = self.client.post(
+                    self.confirmation_url(),
+                    self.confirmation_data(intent),
+                )
+
+                self.assertEqual(response.status_code, 400)
+                intent.refresh_from_db()
+                self.assertEqual(intent.estado, estado)
+                intent.delete()
+
+        self.assertFalse(Foto.objects.exists())
+        get_r2.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_legacy_confirmed_uses_photo_owner_only_for_idempotency(self, get_r2):
+        intent = self.create_intent(legacy=True, uploader_hash=None)
+        foto = Foto.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key=intent.object_key,
+            nombre_original=intent.nombre_original,
+            content_type=intent.content_type_declarado,
+            tamaño=1024,
+            hash_sha256=intent.hash_declarado,
+            uploader_hash=self.uploader_hash,
+        )
+        intent.estado = UploadIntent.Estado.CONFIRMED
+        intent.foto = foto
+        intent.confirmed_at = timezone.now()
+        intent.save(update_fields=["estado", "foto", "confirmed_at"])
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["foto_id"], foto.id)
+        get_r2.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_legacy_confirmed_without_owner_fails_closed(self, get_r2):
+        intent = self.create_intent(legacy=True, uploader_hash=None)
+        foto = Foto.objects.create(
+            evento=self.event,
+            mesa=self.table,
+            object_key=intent.object_key,
+            nombre_original=intent.nombre_original,
+            content_type=intent.content_type_declarado,
+            tamaño=1024,
+            hash_sha256=intent.hash_declarado,
+            uploader_hash="",
+        )
+        intent.estado = UploadIntent.Estado.CONFIRMED
+        intent.foto = foto
+        intent.confirmed_at = timezone.now()
+        intent.save(update_fields=["estado", "foto", "confirmed_at"])
+
+        response = self.client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        get_r2.assert_not_called()
+
+    @patch("eventos.views.get_r2_client")
+    def test_confirmation_remains_csrf_protected(self, get_r2):
+        intent = self.create_intent()
+        client = Client(enforce_csrf_checks=True)
+        self.authorize_upload(
+            client=client,
+            uploader_token=self.uploader_token,
+        )
+
+        response = client.post(
+            self.confirmation_url(),
+            self.confirmation_data(intent),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        intent.refresh_from_db()
+        self.assertEqual(intent.estado, UploadIntent.Estado.PENDING)
+        get_r2.assert_not_called()
 
     @patch("eventos.views.get_r2_client")
     def test_confirmed_intent_remains_idempotent_after_event_closes(self, get_r2):
@@ -1618,6 +1880,10 @@ class UploadIntentConfirmationConcurrencyTests(TransactionTestCase):
             estado=Evento.Estado.ACTIVE,
         )
         self.table = Mesa.objects.create(evento=self.event, numero=1)
+        self.uploader_token = "uploader-confirmacion-concurrente"
+        self.uploader_hash = hashlib.sha256(
+            self.uploader_token.encode("utf-8")
+        ).hexdigest()
 
     def create_intent(self, suffix, tamaño=1024):
         intent = UploadIntent(
@@ -1627,6 +1893,7 @@ class UploadIntentConfirmationConcurrencyTests(TransactionTestCase):
             content_type_declarado="image/jpeg",
             tamaño_declarado=tamaño,
             hash_declarado=(suffix * 64)[:64],
+            uploader_hash=self.uploader_hash,
             expires_at=timezone.now() + timedelta(minutes=5),
         )
         intent.object_key = (
@@ -1645,6 +1912,7 @@ class UploadIntentConfirmationConcurrencyTests(TransactionTestCase):
         session["mesa_id"] = self.table.id
         session["evento_id"] = self.event.id
         session["instrucciones_aceptadas"] = True
+        session["uploader_token"] = self.uploader_token
         session.save()
         return client
 
