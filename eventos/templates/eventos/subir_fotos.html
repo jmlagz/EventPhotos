@@ -588,7 +588,6 @@ button,
             mensaje.textContent =
                 `Preparando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
 
-            // 2. Pedimos a Django una URL temporal
             const datos = new URLSearchParams();
 
             datos.append("nombre", foto.name);
