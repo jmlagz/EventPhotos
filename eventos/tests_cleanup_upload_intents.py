@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+import hashlib
 from io import StringIO
 from threading import Lock
 from unittest.mock import Mock, patch
@@ -742,7 +743,11 @@ class UploadIntentCleanupTests(TestCase):
         intent.final_object_key = (
             f"eventos/{self.event.slug}/fotos/{intent.id}.jpg"
         )
-        intent.save(update_fields=["final_object_key"])
+        uploader_token = "uploader-cleanup-materialized"
+        intent.uploader_hash = hashlib.sha256(
+            uploader_token.encode("utf-8")
+        ).hexdigest()
+        intent.save(update_fields=["final_object_key", "uploader_hash"])
         r2 = FakeR2Client()
         r2.add_temporary(intent, size=2048)
         original_copy = r2._copy_object
@@ -766,6 +771,7 @@ class UploadIntentCleanupTests(TestCase):
         session["mesa_id"] = self.table.id
         session["evento_id"] = self.event.id
         session["instrucciones_aceptadas"] = True
+        session["uploader_token"] = uploader_token
         session.save()
 
         with patch("eventos.views.get_r2_client", return_value=r2):

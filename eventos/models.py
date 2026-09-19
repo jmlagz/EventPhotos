@@ -506,6 +506,13 @@ class UploadIntent(models.Model):
     tamaño_declarado = models.PositiveBigIntegerField()
     hash_declarado = models.CharField(max_length=64)
 
+    uploader_hash = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
     estado = models.CharField(
         max_length=20,
         choices=Estado.choices,

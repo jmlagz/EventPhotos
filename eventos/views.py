@@ -200,6 +200,41 @@ def _respuesta_intent_confirmado(upload_intent):
         }
     )
 
+
+def _respuesta_intent_no_valido():
+    return JsonResponse(
+        {"error": "Intento de subida no válido."},
+        status=400,
+    )
+
+
+def _uploader_autorizado_para_intent(upload_intent, uploader_hash):
+    hash_esperado = upload_intent.uploader_hash
+
+    if (
+        hash_esperado is None
+        and upload_intent.estado == UploadIntent.Estado.CONFIRMED
+        and upload_intent.foto_id is not None
+        and upload_intent.foto.uploader_hash
+    ):
+        hash_esperado = upload_intent.foto.uploader_hash
+
+    return bool(
+        hash_esperado
+        and secrets.compare_digest(hash_esperado, uploader_hash)
+    )
+
+
+def _rechazar_uploader_de_intent(upload_intent):
+    log_operation(
+        "upload_intent_confirmation_failed",
+        intent_id=str(upload_intent.id),
+        state=upload_intent.estado,
+        stage="authorize_uploader",
+        reason="uploader_mismatch",
+    )
+    return _respuesta_intent_no_valido()
+
 def terminos_servicio(request):
     return render(request, "eventos/terminos_servicio.html")
 
@@ -804,6 +839,7 @@ def mesa_publica(request, slug, token):
 
         if not errores:
 
+            obtener_uploader_hash(request)
             request.session["instrucciones_aceptadas"] = True
 
             return redirect(
@@ -995,6 +1031,7 @@ def solicitar_url_subida(request, slug, token):
             }
         )
 
+    uploader_hash = obtener_uploader_hash(request)
     intent_id = uuid.uuid4()
     extension = EXTENSION_POR_MIME_SUBIDA[content_type]
     object_key = (
@@ -1084,6 +1121,7 @@ def solicitar_url_subida(request, slug, token):
             content_type_declarado=content_type,
             tamaño_declarado=tamaño,
             hash_declarado=hash_sha256,
+            uploader_hash=uploader_hash,
             expires_at=expires_at,
         )
 
@@ -1172,8 +1210,46 @@ def _materializar_y_confirmar_intent(
     evento,
     mesa,
     upload_intent,
+    uploader_hash,
     r2=None,
 ):
+    if not _uploader_autorizado_para_intent(upload_intent, uploader_hash):
+        return _rechazar_uploader_de_intent(upload_intent)
+
+    with transaction.atomic():
+        evento_bloqueado = Evento.objects.select_for_update().get(
+            pk=evento.pk
+        )
+        intent_bloqueado = (
+            UploadIntent.objects
+            .select_for_update()
+            .get(
+                pk=upload_intent.pk,
+                evento=evento_bloqueado,
+                mesa=mesa,
+            )
+        )
+
+        if not _uploader_autorizado_para_intent(
+            intent_bloqueado,
+            uploader_hash,
+        ):
+            return _rechazar_uploader_de_intent(intent_bloqueado)
+
+        if (
+            intent_bloqueado.estado == UploadIntent.Estado.CONFIRMED
+            and intent_bloqueado.foto_id is not None
+        ):
+            return _respuesta_intent_confirmado(intent_bloqueado)
+
+        if intent_bloqueado.estado != UploadIntent.Estado.FINALIZING:
+            return JsonResponse(
+                {"error": "La subida no puede confirmarse."},
+                status=409,
+            )
+
+        upload_intent = intent_bloqueado
+
     if (
         upload_intent.final_object_key is None
         or upload_intent.source_etag is None
@@ -1339,8 +1415,6 @@ def _materializar_y_confirmar_intent(
                 status=409,
             )
 
-    uploader_hash = obtener_uploader_hash(request)
-
     with transaction.atomic():
         evento_bloqueado = Evento.objects.select_for_update().get(
             pk=evento.pk
@@ -1354,6 +1428,12 @@ def _materializar_y_confirmar_intent(
                 mesa=mesa,
             )
         )
+
+        if not _uploader_autorizado_para_intent(
+            intent_bloqueado,
+            uploader_hash,
+        ):
+            return _rechazar_uploader_de_intent(intent_bloqueado)
 
         if (
             intent_bloqueado.estado == UploadIntent.Estado.CONFIRMED
@@ -1414,7 +1494,7 @@ def _materializar_y_confirmar_intent(
             content_type=intent_bloqueado.content_type_declarado,
             tamaño=intent_bloqueado.tamaño_real,
             hash_sha256=intent_bloqueado.hash_declarado,
-            uploader_hash=uploader_hash,
+            uploader_hash=intent_bloqueado.uploader_hash,
             estado=Foto.Estado.APROBADA,
         )
 
@@ -1475,6 +1555,8 @@ def confirmar_subida(request, slug, token):
             status=403,
         )
 
+    uploader_hash = obtener_uploader_hash(request)
+
     if not upload_intent_id:
         return JsonResponse(
             {"error": "Falta identificar la subida."},
@@ -1501,10 +1583,13 @@ def confirmar_subida(request, slug, token):
     )
 
     if upload_intent is None:
-        return JsonResponse(
-            {"error": "Intento de subida no válido."},
-            status=400,
-        )
+        return _respuesta_intent_no_valido()
+
+    if not _uploader_autorizado_para_intent(
+        upload_intent,
+        uploader_hash,
+    ):
+        return _rechazar_uploader_de_intent(upload_intent)
 
     object_key_enviada = request.POST.get("object_key", "").strip()
     if object_key_enviada and object_key_enviada != upload_intent.object_key:
@@ -1525,6 +1610,7 @@ def confirmar_subida(request, slug, token):
             evento,
             mesa,
             upload_intent,
+            uploader_hash,
         )
 
     if not evento.permite_carga():
@@ -1556,6 +1642,12 @@ def confirmar_subida(request, slug, token):
                 )
             )
             ahora = timezone.now()
+
+            if not _uploader_autorizado_para_intent(
+                intent_vencido,
+                uploader_hash,
+            ):
+                return _rechazar_uploader_de_intent(intent_vencido)
 
             if (
                 intent_vencido.estado == UploadIntent.Estado.CONFIRMED
@@ -1638,6 +1730,12 @@ def confirmar_subida(request, slug, token):
             )
         )
         ahora = timezone.now()
+
+        if not _uploader_autorizado_para_intent(
+            intent_bloqueado,
+            uploader_hash,
+        ):
+            return _rechazar_uploader_de_intent(intent_bloqueado)
 
         if (
             intent_bloqueado.estado == UploadIntent.Estado.CONFIRMED
@@ -1845,6 +1943,7 @@ def confirmar_subida(request, slug, token):
         evento,
         mesa,
         intent_para_materializar,
+        uploader_hash,
         r2=r2,
     )
 
