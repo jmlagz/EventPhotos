@@ -14,6 +14,11 @@ from .services.slideshow_promos import (
 
 @admin.register(Evento)
 class EventoAdmin(admin.ModelAdmin):
+    exclude = (
+        "media_access",
+        "media_password_hash",
+    )
+
     list_display = (
         "nombre",
         "tipo",

@@ -5,7 +5,7 @@ import io
 import uuid
 import zipfile
 import qrcode
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from botocore.exceptions import ClientError
 
@@ -40,11 +40,17 @@ from .limites import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 from django.utils.dateparse import parse_datetime
 from django.utils.http import urlsafe_base64_decode
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import (
+    require_GET,
+    require_POST,
+    require_http_methods,
+)
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.views import (
@@ -114,6 +120,7 @@ from .services.event_self_service import (
     crear_evento_autoservicio,
 )
 
+
 def obtener_uploader_hash(request):
     uploader_token = request.session.get("uploader_token")
 
@@ -131,6 +138,77 @@ def _usuario_administra_evento(request, evento):
         request.user.is_superuser
         or evento.anfitriones.filter(pk=request.user.pk).exists()
     )
+
+
+MEDIA_UNLOCK_SESSION_KEY = "media_eventos_desbloqueados"
+MEDIA_UNLOCK_SALT = "eventos.media-access.session.v1"
+MEDIA_DESTINATIONS = {
+    "album": "album_publico",
+    "slideshow": "slideshow",
+}
+
+
+def _version_acceso_media(evento):
+    return salted_hmac(
+        MEDIA_UNLOCK_SALT,
+        f"{evento.pk}:{evento.media_password_hash}",
+    ).hexdigest()
+
+
+def _media_desbloqueada_en_sesion(request, evento):
+    desbloqueos = request.session.get(MEDIA_UNLOCK_SESSION_KEY, {})
+    if not isinstance(desbloqueos, dict):
+        return False
+
+    version_guardada = desbloqueos.get(str(evento.pk))
+    version_actual = _version_acceso_media(evento)
+    return bool(
+        isinstance(version_guardada, str)
+        and secrets.compare_digest(version_guardada, version_actual)
+    )
+
+
+def _puede_ver_media_evento(request, evento):
+    if not evento.media_disponible():
+        return False
+
+    if evento.media_access == Evento.MediaAccess.PUBLIC:
+        return True
+
+    if _usuario_administra_evento(request, evento):
+        return True
+
+    return _media_desbloqueada_en_sesion(request, evento)
+
+
+def _guardar_desbloqueo_media(request, evento):
+    desbloqueos = request.session.get(MEDIA_UNLOCK_SESSION_KEY, {})
+    if not isinstance(desbloqueos, dict):
+        desbloqueos = {}
+    else:
+        desbloqueos = dict(desbloqueos)
+
+    desbloqueos[str(evento.pk)] = _version_acceso_media(evento)
+    request.session[MEDIA_UNLOCK_SESSION_KEY] = desbloqueos
+
+
+def _normalizar_destino_media(destino):
+    return destino if destino in MEDIA_DESTINATIONS else "album"
+
+
+def _url_destino_media(evento, destino):
+    return reverse(
+        MEDIA_DESTINATIONS[_normalizar_destino_media(destino)],
+        args=[evento.slug],
+    )
+
+
+def _respuesta_desbloqueo_requerido(evento, destino):
+    unlock_url = reverse("desbloquear_media", args=[evento.slug])
+    query = urlencode({"destino": _normalizar_destino_media(destino)})
+    response = redirect(f"{unlock_url}?{query}")
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 EXTENSION_POR_MIME_SUBIDA = {
@@ -2038,20 +2116,71 @@ SLIDESHOW_PHOTO_PAGE_SIZE = 100
 SLIDESHOW_MAX_PHOTO_ID = 9_223_372_036_854_775_807
 
 
-def _evento_slideshow_disponible(slug):
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-        estado__in=[
-            Evento.Estado.ACTIVE,
-            Evento.Estado.CLOSED,
-        ],
-    )
+def _evento_media_disponible(slug):
+    evento = get_object_or_404(Evento, slug=slug)
 
-    if not evento.permite_album_publico():
-        raise Http404("Slideshow no disponible.")
+    if not evento.media_disponible():
+        raise Http404("Contenido no disponible.")
 
     return evento
+
+
+def _evento_slideshow_disponible(slug):
+    return _evento_media_disponible(slug)
+
+
+def _evento_album_disponible(slug):
+    return _evento_media_disponible(slug)
+
+
+def _media_json_denegada():
+    response = JsonResponse(
+        {
+            "error": "Este contenido está protegido.",
+            "code": "media_access_required",
+        },
+        status=403,
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@require_http_methods(["GET", "POST"])
+def desbloquear_media(request, slug):
+    evento = _evento_media_disponible(slug)
+    destino = _normalizar_destino_media(
+        request.POST.get("destino")
+        if request.method == "POST"
+        else request.GET.get("destino")
+    )
+
+    if _puede_ver_media_evento(request, evento):
+        return redirect(_url_destino_media(evento, destino))
+
+    error = None
+    if request.method == "POST":
+        password = request.POST.get("password", "")
+        if (
+            evento.media_access == Evento.MediaAccess.PASSWORD
+            and evento.media_password_hash
+            and check_password(password, evento.media_password_hash)
+        ):
+            _guardar_desbloqueo_media(request, evento)
+            return redirect(_url_destino_media(evento, destino))
+
+        error = "La contraseña no es correcta."
+
+    response = render(
+        request,
+        "eventos/desbloquear_media.html",
+        {
+            "evento": evento,
+            "destino": destino,
+            "error": error,
+        },
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 def _slideshow_json(payload, *, status=200):
@@ -2063,17 +2192,25 @@ def _slideshow_json(payload, *, status=200):
 @require_GET
 def slideshow(request, slug):
     evento = _evento_slideshow_disponible(slug)
+    if not _puede_ver_media_evento(request, evento):
+        return _respuesta_desbloqueo_requerido(evento, "slideshow")
 
-    return render(
+    response = render(
         request,
         "eventos/slideshow.html",
         {"evento": evento},
     )
+    if evento.media_access == Evento.MediaAccess.PASSWORD:
+        response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @require_GET
 def slideshow_photos(request, slug):
     evento = _evento_slideshow_disponible(slug)
+    if not _puede_ver_media_evento(request, evento):
+        return _media_json_denegada()
+
     after_id_raw = request.GET.get("after_id")
     after_id = None
 
@@ -2133,7 +2270,10 @@ def slideshow_photos(request, slug):
 
 @require_GET
 def slideshow_promos(request, slug):
-    _evento_slideshow_disponible(slug)
+    evento = _evento_slideshow_disponible(slug)
+    if not _puede_ver_media_evento(request, evento):
+        return _media_json_denegada()
+
     promos = SlideshowPromo.objects.filter(activa=True).order_by("orden", "tipo")
     serialized = []
 
@@ -2159,22 +2299,6 @@ def slideshow_promos(request, slug):
 
 ALBUM_PHOTO_PAGE_SIZE = 30
 ALBUM_CURSOR_SALT = "eventos.album-publico.cursor.v1"
-
-
-def _evento_album_disponible(slug):
-    evento = get_object_or_404(
-        Evento,
-        slug=slug,
-        estado__in=[
-            Evento.Estado.ACTIVE,
-            Evento.Estado.CLOSED,
-        ],
-    )
-
-    if not evento.permite_album_publico():
-        raise Http404("Álbum no disponible.")
-
-    return evento
 
 
 def _codificar_cursor_album(evento, foto):
@@ -2305,6 +2429,8 @@ def _respuesta_album_sin_cache(response):
 @require_GET
 def album_publico(request, slug):
     evento = _evento_album_disponible(slug)
+    if not _puede_ver_media_evento(request, evento):
+        return _respuesta_desbloqueo_requerido(evento, "album")
 
     fotos_queryset = _queryset_fotos_album(evento)
     total_fotos = fotos_queryset.count()
@@ -2334,6 +2460,9 @@ def album_publico(request, slug):
 @require_GET
 def album_publico_fotos(request, slug):
     evento = _evento_album_disponible(slug)
+    if not _puede_ver_media_evento(request, evento):
+        return _media_json_denegada()
+
     cursor_raw = request.GET.get("cursor")
 
     if not cursor_raw:

@@ -32,6 +32,10 @@ class Evento(models.Model):
         ADMIN = "admin", "Administración"
         SELF_SERVICE = "self_service", "Autoservicio"
 
+    class MediaAccess(models.TextChoices):
+        PUBLIC = "public", "Público"
+        PASSWORD = "password", "Protegido con contraseña"
+
     nombre = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
 
@@ -136,6 +140,18 @@ class Evento(models.Model):
         null=True,
     )
 
+    media_access = models.CharField(
+        max_length=20,
+        choices=MediaAccess.choices,
+        default=MediaAccess.PUBLIC,
+    )
+
+    media_password_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+    )
+
     configuracion_version = models.PositiveSmallIntegerField(
         blank=True,
         null=True,
@@ -166,7 +182,7 @@ class Evento(models.Model):
 
         return ahora <= self.upload_until
 
-    def permite_album_publico(self, ahora=None):
+    def media_disponible(self, ahora=None):
         if self.estado not in {
             self.Estado.ACTIVE,
             self.Estado.CLOSED,
@@ -180,6 +196,9 @@ class Evento(models.Model):
             ahora = timezone.now()
 
         return ahora <= self.available_until
+
+    def permite_album_publico(self, ahora=None):
+        return self.media_disponible(ahora)
 
     def materializar_ciclo_temporal(
         self,

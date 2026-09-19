@@ -1,0 +1,87 @@
+{% extends "eventos/base.html" %}
+
+{% block title %}Contenido protegido — EventPhotos{% endblock %}
+
+{% block content %}
+    <style>
+        .media-unlock {
+            width: min(100%, 520px);
+            margin: 48px auto;
+            padding: 28px;
+        }
+
+        .media-unlock h1 {
+            margin: 0 0 10px;
+            font-size: clamp(24px, 6vw, 34px);
+        }
+
+        .media-unlock p {
+            margin: 0 0 24px;
+            color: var(--color-text-secondary);
+        }
+
+        .media-unlock label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .media-unlock input {
+            width: 100%;
+            min-height: 48px;
+            padding: 10px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-surface);
+            color: var(--color-text);
+        }
+
+        .media-unlock .button {
+            width: 100%;
+            margin-top: 18px;
+        }
+
+        .media-unlock-error {
+            margin-bottom: 18px;
+            padding: 12px;
+            border: 1px solid var(--color-danger);
+            border-radius: var(--radius-md);
+            background: var(--color-danger-soft);
+        }
+
+        @media (max-width: 600px) {
+            .media-unlock {
+                margin: 24px auto;
+                padding: 22px 18px;
+            }
+        }
+    </style>
+
+    <section class="card media-unlock">
+        <h1>Este contenido está protegido</h1>
+        <p>Ingresa la contraseña del evento para ver las fotos.</p>
+
+        {% if error %}
+            <div class="media-unlock-error" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="destino" value="{{ destino }}">
+
+            <label for="media-password">Contraseña del evento</label>
+            <input
+                id="media-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                autofocus
+            >
+
+            <button class="button" type="submit">Continuar</button>
+        </form>
+    </section>
+{% endblock %}

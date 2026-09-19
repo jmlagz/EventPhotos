@@ -171,6 +171,11 @@ urlpatterns = [
         views.album_publico_fotos,
         name="album_publico_fotos",
     ),
+    path(
+        "fotos/<slug:slug>/desbloquear/",
+        views.desbloquear_media,
+        name="desbloquear_media",
+    ),
 
     path(
         "fotos/<slug:slug>/slideshow/",
