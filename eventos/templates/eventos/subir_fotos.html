@@ -308,12 +308,14 @@ button,
         >
             🚀 Compartir fotos
         </button>
-        <a
-            class="boton-album"
-            href="{% url 'album_publico' slug=evento.slug %}"
-        >
-            🖼️ Ver álbum del evento
-        </a>
+        {% if evento.permite_album_publico %}
+            <a
+                class="boton-album"
+                href="{% url 'album_publico' slug=evento.slug %}"
+            >
+                🖼️ Ver álbum del evento
+            </a>
+        {% endif %}
     </section>
 
     

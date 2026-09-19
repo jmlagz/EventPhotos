@@ -530,12 +530,14 @@
                         </button>
 
 
-                        <a
-                            class="boton boton-secundario"
-                            href="{% url 'album_publico' slug=evento.slug %}"
-                        >
-                            🖼️ Ver álbum del evento
-                        </a>
+                        {% if evento.permite_album_publico %}
+                            <a
+                                class="boton boton-secundario"
+                                href="{% url 'album_publico' slug=evento.slug %}"
+                            >
+                                🖼️ Ver álbum del evento
+                            </a>
+                        {% endif %}
 
                     </div>
 

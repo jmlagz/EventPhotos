@@ -205,12 +205,14 @@
                 {% endif %}
 
 
-                <a
-                    href="{% url 'album_publico' slug=evento.slug %}"
-                    class="boton"
-                >
-                    📷 Ver álbum
-                </a>
+                {% if evento.permite_album_publico %}
+                    <a
+                        href="{% url 'album_publico' slug=evento.slug %}"
+                        class="boton"
+                    >
+                        📷 Ver álbum
+                    </a>
+                {% endif %}
 
             </div>
 

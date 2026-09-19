@@ -10,6 +10,8 @@
         content="width=device-width, initial-scale=1.0"
     >
 
+    <meta name="robots" content="noindex, nofollow">
+
     <title>Álbum - {{ evento.nombre }}</title>
 
     <style>
@@ -179,6 +181,32 @@
             gap: 14px;
         }
 
+        .cargar-mas-contenedor {
+            display: flex;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .cargar-mas {
+            min-height: 44px;
+            padding: 11px 20px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--primary);
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .cargar-mas:hover {
+            background: var(--primary-dark);
+        }
+
+        .cargar-mas:disabled {
+            cursor: wait;
+            opacity: 0.7;
+        }
+
         .foto {
             position: relative;
             overflow: hidden;
@@ -200,32 +228,6 @@
         .foto:hover img {
             transform: scale(1.045);
             filter: brightness(0.94);
-        }
-
-        .info-foto {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 34px 12px 12px;
-            color: white;
-            background: linear-gradient(
-                to top,
-                rgba(0, 0, 0, 0.72),
-                rgba(0, 0, 0, 0)
-            );
-            pointer-events: none;
-        }
-
-        .mesa-foto {
-            font-size: 13px;
-            font-weight: 700;
-        }
-
-        .fecha-foto {
-            margin-top: 4px;
-            font-size: 11px;
-            opacity: 0.78;
         }
 
         .boton-eliminar {
@@ -546,8 +548,8 @@
             <h1>{{ evento.nombre }}</h1>
 
             <div class="contador">
-                {{ fotos|length }}
-                {% if fotos|length == 1 %}
+                <span id="totalFotos">{{ total_fotos }}</span>
+                {% if total_fotos == 1 %}
                     foto compartida
                 {% else %}
                     fotos compartidas
@@ -597,7 +599,7 @@
     {% endif %}
 
 
-    {% if fotos %}
+    {% if total_fotos %}
 
         <main class="contenido">
 
@@ -615,7 +617,7 @@
                 <div
                     class="foto"
                     data-index="{{ forloop.counter0 }}"
-                    data-foto-id="{{ item.foto.id }}"
+                    data-foto-id="{{ item.id }}"
                 >
 
                     <img
@@ -624,25 +626,13 @@
                         loading="lazy"
                     >
 
-                    <div class="info-foto">
-
-                        <div class="mesa-foto">
-                            🪑 {{ item.foto.mesa.etiqueta }}
-                        </div>
-
-                        <div class="fecha-foto">
-                            {{ item.foto.creada_en|date:"d/m/Y H:i" }}
-                        </div>
-
-                    </div>
-
-                    {% if item.puede_eliminar %}
+                    {% if item.can_delete %}
 
                         <button
                             class="boton-eliminar"
                             type="button"
                             title="Eliminar mi foto"
-                            data-foto-id="{{ item.foto.id }}"
+                            data-foto-id="{{ item.id }}"
                         >
                             🗑️
                         </button>
@@ -653,6 +643,22 @@
 
             {% endfor %}
 
+            </div>
+
+            <div
+                id="cargarMasContenedor"
+                class="cargar-mas-contenedor"
+                {% if not album_has_more %}hidden{% endif %}
+            >
+                <button
+                    id="cargarMas"
+                    class="cargar-mas"
+                    type="button"
+                    data-endpoint="{% url 'album_publico_fotos' slug=evento.slug %}"
+                    data-next-cursor="{{ album_next_cursor|default:'' }}"
+                >
+                    Cargar más
+                </button>
             </div>
 
         </main>
@@ -1009,6 +1015,114 @@
 
             }
         );
+
+        const galeria = document.querySelector(".galeria");
+        const cargarMasContenedor =
+            document.getElementById("cargarMasContenedor");
+        const cargarMas =
+            document.getElementById("cargarMas");
+
+        function crearTarjetaFoto(item) {
+            const contenedor = document.createElement("div");
+            contenedor.className = "foto";
+            contenedor.dataset.fotoId = String(item.id);
+
+            const imagen = document.createElement("img");
+            imagen.src = item.url;
+            imagen.alt = "Foto de {{ evento.nombre|escapejs }}";
+            imagen.loading = "lazy";
+            contenedor.appendChild(imagen);
+
+            fotos.push(imagen);
+            contenedor.addEventListener("click", function () {
+                mostrarFoto(fotos.indexOf(imagen));
+            });
+
+            if (item.can_delete) {
+                const boton = document.createElement("button");
+                boton.className = "boton-eliminar";
+                boton.type = "button";
+                boton.title = "Eliminar mi foto";
+                boton.dataset.fotoId = String(item.id);
+                boton.textContent = "🗑️";
+                boton.addEventListener("click", eliminarFotoCargada);
+                contenedor.appendChild(boton);
+            }
+
+            galeria.appendChild(contenedor);
+        }
+
+        async function eliminarFotoCargada(evento) {
+            evento.stopPropagation();
+            const boton = evento.currentTarget;
+
+            if (!confirm("¿Quieres eliminar esta foto?")) {
+                return;
+            }
+
+            boton.disabled = true;
+            try {
+                const respuesta = await fetch(
+                    "{% url 'eliminar_foto' slug=evento.slug foto_id=0 %}"
+                        .replace("/0/", `/${boton.dataset.fotoId}/`),
+                    {
+                        method: "POST",
+                        headers: {"X-CSRFToken": "{{ csrf_token }}"},
+                    }
+                );
+                const resultado = await respuesta.json();
+                if (!respuesta.ok) {
+                    throw new Error(
+                        resultado.error || "No fue posible eliminar la foto."
+                    );
+                }
+
+                const contenedor = boton.closest(".foto");
+                const imagen = contenedor.querySelector("img");
+                const indice = fotos.indexOf(imagen);
+                if (indice >= 0) {
+                    fotos.splice(indice, 1);
+                }
+                contenedor.remove();
+            } catch (error) {
+                console.error(error);
+                alert(error.message);
+                boton.disabled = false;
+            }
+        }
+
+        if (cargarMas) {
+            cargarMas.addEventListener("click", async function () {
+                cargarMas.disabled = true;
+                cargarMas.textContent = "Cargando…";
+
+                try {
+                    const url = new URL(cargarMas.dataset.endpoint, window.location.origin);
+                    url.searchParams.set("cursor", cargarMas.dataset.nextCursor);
+                    const respuesta = await fetch(url, {
+                        headers: {"Accept": "application/json"},
+                    });
+                    const resultado = await respuesta.json();
+                    if (!respuesta.ok) {
+                        throw new Error(
+                            resultado.error || "No fue posible cargar más fotos."
+                        );
+                    }
+
+                    resultado.photos.forEach(crearTarjetaFoto);
+                    cargarMas.dataset.nextCursor = resultado.next_cursor || "";
+                    if (!resultado.has_more) {
+                        cargarMasContenedor.hidden = true;
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message);
+                } finally {
+                    cargarMas.disabled = false;
+                    cargarMas.textContent = "Cargar más";
+                }
+            });
+        }
 
     </script>
 

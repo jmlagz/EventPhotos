@@ -337,12 +337,14 @@
 
         <div class="actions">
 
-            <a
-                class="button primary"
-                href="{% url 'album_publico' evento.slug %}"
-            >
-                🖼️&nbsp;&nbsp;Ver álbum del evento
-            </a>
+            {% if evento.permite_album_publico %}
+                <a
+                    class="button primary"
+                    href="{% url 'album_publico' evento.slug %}"
+                >
+                    🖼️&nbsp;&nbsp;Ver álbum del evento
+                </a>
+            {% endif %}
 
         </div>
 

@@ -17,6 +17,7 @@ from django.contrib import messages
 from datetime import timedelta
 from django.core.mail import EmailMultiAlternatives
 from django.core.exceptions import ValidationError
+from django.core import signing
 from django.urls import reverse, reverse_lazy
 from django.template.loader import render_to_string
 
@@ -39,6 +40,7 @@ from .limites import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.http import require_GET, require_POST
 from django.conf import settings
@@ -2027,7 +2029,11 @@ def slideshow_promos(request, slug):
 
     return _slideshow_json({"promos": serialized})
 
-def album_publico(request, slug):
+ALBUM_PHOTO_PAGE_SIZE = 30
+ALBUM_CURSOR_SALT = "eventos.album-publico.cursor.v1"
+
+
+def _evento_album_disponible(slug):
     evento = get_object_or_404(
         Evento,
         slug=slug,
@@ -2040,38 +2046,184 @@ def album_publico(request, slug):
     if not evento.permite_album_publico():
         raise Http404("Álbum no disponible.")
 
+    return evento
+
+
+def _codificar_cursor_album(evento, foto):
+    """Firma el par (creada_en, id) usado por el orden descendente del álbum."""
+    return signing.dumps(
+        {
+            "created_at": foto.creada_en.isoformat(),
+            "id": foto.id,
+        },
+        salt=f"{ALBUM_CURSOR_SALT}.{evento.pk}",
+        compress=True,
+    )
+
+
+def _decodificar_cursor_album(evento, cursor):
+    try:
+        if not isinstance(cursor, str) or len(cursor) > 512:
+            raise ValueError
+
+        payload = signing.loads(
+            cursor,
+            salt=f"{ALBUM_CURSOR_SALT}.{evento.pk}",
+        )
+        if not isinstance(payload, dict) or set(payload) != {"created_at", "id"}:
+            raise ValueError
+
+        created_at = parse_datetime(payload["created_at"])
+        photo_id = payload["id"]
+        if (
+            created_at is None
+            or not timezone.is_aware(created_at)
+            or not isinstance(photo_id, int)
+            or isinstance(photo_id, bool)
+            or photo_id <= 0
+        ):
+            raise ValueError
+    except (signing.BadSignature, KeyError, TypeError, ValueError):
+        raise ValueError("invalid album cursor") from None
+
+    return created_at, photo_id
+
+
+def _queryset_fotos_album(evento, cursor=None):
     fotos = Foto.objects.filter(
         evento=evento,
         eliminada_at__isnull=True,
-    ).select_related(
-        "mesa",
-    )
+    ).order_by("-creada_en", "-id")
 
-    uploader_hash = obtener_uploader_hash(request)
+    if cursor is not None:
+        created_at, photo_id = cursor
+        fotos = fotos.filter(
+            Q(creada_en__lt=created_at)
+            | Q(creada_en=created_at, id__lt=photo_id)
+        )
 
-    fotos_album = []
+    return fotos
 
+
+def _serializar_lote_album(evento, fotos, uploader_hash):
+    serializadas = []
     for foto in fotos:
-        fotos_album.append(
+        try:
+            url = generar_url_lectura(foto.object_key)
+        except Exception as error:
+            # Se omite únicamente la foto afectada. No registramos object keys,
+            # URLs firmadas ni el texto de la excepción, que podría contenerlos.
+            logger.warning(
+                "album photo signing failed",
+                extra={
+                    "event_id": evento.pk,
+                    "photo_id": foto.pk,
+                    "error_type": type(error).__name__,
+                },
+            )
+            continue
+
+        serializadas.append(
             {
-                "foto": foto,
-                "url": generar_url_lectura(
-                    foto.object_key
-                ),
-                "puede_eliminar": (
-                    foto.uploader_hash == uploader_hash
-                ),
+                "id": foto.id,
+                "url": url,
+                "can_delete": foto.uploader_hash == uploader_hash,
             }
         )
 
-    return render(
+    return serializadas
+
+
+def _obtener_lote_album(evento, uploader_hash, cursor=None):
+    candidatas = list(
+        _queryset_fotos_album(evento, cursor)[: ALBUM_PHOTO_PAGE_SIZE + 1]
+    )
+    has_more = len(candidatas) > ALBUM_PHOTO_PAGE_SIZE
+    lote = candidatas[:ALBUM_PHOTO_PAGE_SIZE]
+    fotos = _serializar_lote_album(evento, lote, uploader_hash)
+    next_cursor = (
+        _codificar_cursor_album(evento, lote[-1]) if has_more and lote else None
+    )
+
+    return fotos, has_more, next_cursor
+
+
+def _respuesta_album_sin_cache(response):
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@require_GET
+def album_publico(request, slug):
+    evento = _evento_album_disponible(slug)
+
+    fotos_queryset = _queryset_fotos_album(evento)
+    total_fotos = fotos_queryset.count()
+    uploader_hash = obtener_uploader_hash(request)
+    fotos, has_more, next_cursor = _obtener_lote_album(
+        evento,
+        uploader_hash,
+    )
+
+    response = render(
         request,
         "eventos/album_publico.html",
         {
             "evento": evento,
-            "fotos": fotos_album,
+            "fotos": fotos,
+            "total_fotos": total_fotos,
+            "album_has_more": has_more,
+            "album_next_cursor": next_cursor,
             **_contexto_identidad_visual(evento),
         },
+    )
+    return _respuesta_album_sin_cache(response)
+
+
+@require_GET
+def album_publico_fotos(request, slug):
+    evento = _evento_album_disponible(slug)
+    cursor_raw = request.GET.get("cursor")
+
+    if not cursor_raw:
+        return _respuesta_album_sin_cache(
+            JsonResponse(
+                {
+                    "error": "El cursor no es válido.",
+                    "code": "invalid_cursor",
+                },
+                status=400,
+            )
+        )
+
+    try:
+        cursor = _decodificar_cursor_album(evento, cursor_raw)
+    except ValueError:
+        return _respuesta_album_sin_cache(
+            JsonResponse(
+                {
+                    "error": "El cursor no es válido.",
+                    "code": "invalid_cursor",
+                },
+                status=400,
+            )
+        )
+
+    uploader_hash = obtener_uploader_hash(request)
+    fotos, has_more, next_cursor = _obtener_lote_album(
+        evento,
+        uploader_hash,
+        cursor,
+    )
+
+    return _respuesta_album_sin_cache(
+        JsonResponse(
+            {
+                "photos": fotos,
+                "has_more": has_more,
+                "next_cursor": next_cursor,
+            }
+        )
     )
 
 def home(request):
