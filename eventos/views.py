@@ -2609,6 +2609,17 @@ def crear_evento(request):
         },
     )
 
+
+def _eliminar_personalizacion_rechazada(r2, object_key):
+    try:
+        r2.delete_object(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=object_key,
+        )
+    except Exception:
+        pass
+
+
 @login_required
 def confirmar_personalizacion(request, slug):
     evento = obtener_evento_del_usuario(request, slug)
@@ -2664,6 +2675,21 @@ def confirmar_personalizacion(request, slug):
             status=400,
         )
 
+    content_length = objeto.get("ContentLength")
+
+    if (
+        isinstance(content_length, bool)
+        or not isinstance(content_length, int)
+        or content_length <= 0
+        or content_length > MAX_TAMANO_PERSONALIZACION
+    ):
+        _eliminar_personalizacion_rechazada(r2, object_key)
+
+        return JsonResponse(
+            {"error": "El archivo tiene un tamaño no válido."},
+            status=400,
+        )
+
     content_type = objeto.get("ContentType", "")
 
     tipos_permitidos = {
@@ -2673,13 +2699,7 @@ def confirmar_personalizacion(request, slug):
     }
 
     if content_type not in tipos_permitidos:
-        try:
-            r2.delete_object(
-                Bucket=settings.R2_BUCKET_NAME,
-                Key=object_key,
-            )
-        except Exception:
-            pass
+        _eliminar_personalizacion_rechazada(r2, object_key)
 
         return JsonResponse(
             {"error": "El archivo no es una imagen válida."},
@@ -2793,6 +2813,7 @@ def solicitar_url_personalizacion(request, slug):
         url = generar_url_subida(
             object_key=object_key,
             content_type=content_type,
+            content_length=tamaño,
         )
     except Exception:
         return JsonResponse(
