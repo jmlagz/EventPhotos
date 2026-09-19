@@ -183,6 +183,67 @@ button,
     object-fit: cover;
 }
 
+.foto-eliminar {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(17, 24, 39, .82);
+    font-size: 25px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.foto-eliminar:disabled {
+    display: none;
+}
+
+.foto-estado {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 8px;
+    border-radius: 9px;
+    color: #fff;
+    background: rgba(17, 24, 39, .84);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.foto-estado--subida {
+    background: rgba(2, 122, 72, .92);
+}
+
+.foto-estado--duplicada {
+    background: rgba(71, 84, 103, .94);
+}
+
+.foto-estado--error {
+    background: rgba(180, 35, 24, .94);
+}
+
+.progreso-global {
+    display: none;
+    margin-top: 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 750;
+}
+
 .mensaje {
     margin-top: 20px;
     padding: 13px 15px;
@@ -300,6 +361,12 @@ button,
 
         <div id="galeria" class="galeria"></div>
 
+        <div
+            id="progresoGlobal"
+            class="progreso-global"
+            aria-live="polite"
+        ></div>
+
         <button
             id="botonSubir"
             class="boton"
@@ -332,12 +399,17 @@ button,
         const contador = document.getElementById("contador");
         const mensaje = document.getElementById("mensaje");
         const botonSubir = document.getElementById("botonSubir");
+        const progresoGlobal = document.getElementById("progresoGlobal");
 
         const MAX_FOTOS = 20;
 
         let fotosSeleccionadas = [];
         // Solo vive en esta página: nunca conservar URLs firmadas ni object_key.
         const progresoFotos = new Map();
+        const estadosFotos = new Map();
+        const elementosEstado = new Map();
+        const botonesEliminar = new Map();
+        const urlsPreview = new Map();
         const MAX_REINTENTOS_CONFIRMACION = 3;
         let enviando = false;
         let confirmacionPendiente = null;
@@ -347,28 +419,45 @@ button,
         selector.addEventListener("change", function () {
 
             if (enviando || confirmacionPendiente) return;
+
+            if (loteDetenido) {
+                fotosSeleccionadas = [];
+                estadosFotos.clear();
+            }
+
             progresoFotos.clear();
             loteDetenido = false;
             botonSubir.textContent = "🚀 Compartir fotos";
 
             const nuevasFotos = Array.from(selector.files);
+            const clavesSeleccionadas = new Set(
+                fotosSeleccionadas.map(claveFoto)
+            );
+            let excedeLimite = false;
 
             mensaje.style.display = "none";
             mensaje.textContent = "";
 
-            if (nuevasFotos.length > MAX_FOTOS) {
+            nuevasFotos.forEach(function (foto) {
+                const clave = claveFoto(foto);
+                if (clavesSeleccionadas.has(clave)) return;
 
+                if (fotosSeleccionadas.length >= MAX_FOTOS) {
+                    excedeLimite = true;
+                    return;
+                }
+
+                fotosSeleccionadas.push(foto);
+                clavesSeleccionadas.add(clave);
+                estadosFotos.set(foto, "pendiente");
+            });
+
+            selector.value = "";
+
+            if (excedeLimite) {
                 mensaje.textContent =
                     "Puedes seleccionar un máximo de 20 fotos.";
-
                 mensaje.style.display = "block";
-
-                fotosSeleccionadas = nuevasFotos.slice(0, MAX_FOTOS);
-
-            } else {
-
-                fotosSeleccionadas = nuevasFotos;
-
             }
 
             mostrarPreviews();
@@ -376,7 +465,68 @@ button,
         });
 
 
+        function claveFoto(foto) {
+            return [
+                foto.name,
+                foto.size,
+                foto.type,
+                foto.lastModified || 0,
+            ].join("::");
+        }
+
+
+        function actualizarProgresoGlobal() {
+            const procesadas = Array.from(estadosFotos.values()).filter(
+                estado => ["subida", "duplicada", "error"].includes(estado)
+            ).length;
+
+            progresoGlobal.textContent =
+                `${procesadas} de ${fotosSeleccionadas.length} procesadas`;
+            progresoGlobal.style.display =
+                enviando || procesadas > 0 ? "block" : "none";
+        }
+
+
+        function actualizarEstadoFoto(foto, estado) {
+            const etiquetas = {
+                pendiente: "Pendiente",
+                subiendo: "Subiendo…",
+                subida: "✓ Subida",
+                duplicada: "♻ Ya existía",
+                error: "⚠ Error",
+            };
+            estadosFotos.set(foto, estado);
+
+            const elemento = elementosEstado.get(foto);
+            if (elemento) {
+                elemento.className = `foto-estado foto-estado--${estado}`;
+                elemento.textContent = etiquetas[estado];
+            }
+
+            actualizarProgresoGlobal();
+        }
+
+
+        function quitarFoto(foto) {
+            if (enviando || confirmacionPendiente) return;
+
+            fotosSeleccionadas = fotosSeleccionadas.filter(
+                seleccionada => seleccionada !== foto
+            );
+            estadosFotos.delete(foto);
+            progresoFotos.delete(foto);
+            mostrarPreviews();
+        }
+
+
         function mostrarPreviews() {
+
+            urlsPreview.forEach(function (url) {
+                if (URL.revokeObjectURL) URL.revokeObjectURL(url);
+            });
+            urlsPreview.clear();
+            elementosEstado.clear();
+            botonesEliminar.clear();
 
             galeria.innerHTML = "";
 
@@ -395,12 +545,38 @@ button,
                 const imagen = document.createElement("img");
 
                 imagen.alt = foto.name;
-                imagen.src = URL.createObjectURL(foto);
+                const previewUrl = URL.createObjectURL(foto);
+                urlsPreview.set(foto, previewUrl);
+                imagen.src = previewUrl;
+
+                const botonEliminar = document.createElement("button");
+                botonEliminar.type = "button";
+                botonEliminar.className = "foto-eliminar";
+                botonEliminar.textContent = "×";
+                botonEliminar.title = `Quitar ${foto.name}`;
+                botonEliminar.ariaLabel = `Quitar ${foto.name} de la selección`;
+                botonEliminar.addEventListener("click", function () {
+                    quitarFoto(foto);
+                });
+
+                const estado = document.createElement("span");
+                estado.className = "foto-estado";
+                elementosEstado.set(foto, estado);
+                botonesEliminar.set(foto, botonEliminar);
 
                 contenedor.appendChild(imagen);
+                contenedor.appendChild(botonEliminar);
+                contenedor.appendChild(estado);
                 galeria.appendChild(contenedor);
 
+                actualizarEstadoFoto(
+                    foto,
+                    estadosFotos.get(foto) || "pendiente"
+                );
+
             });
+
+            actualizarProgresoGlobal();
 
         }
 
@@ -727,26 +903,43 @@ button,
             enviando = true;
             botonSubir.disabled = true;
             selector.disabled = true;
+            botonesEliminar.forEach(boton => boton.disabled = true);
             mensaje.style.display = "block";
             if (confirmacionPendiente) confirmacionPendiente.reintentos++;
             confirmacionPendiente = null;
+            actualizarProgresoGlobal();
 
             try {
                 for (let i = 0; i < fotosSeleccionadas.length; i++) {
                     const foto = fotosSeleccionadas[i];
                     let registro = progresoFotos.get(foto);
                     if (!registro) {
-                        registro = await enviarFoto(foto, i);
+                        actualizarEstadoFoto(foto, "subiendo");
+                        try {
+                            registro = await enviarFoto(foto, i);
+                        } catch (error) {
+                            console.error(error);
+                            registro = {resultado: "error"};
+                            progresoFotos.set(foto, registro);
+                            actualizarEstadoFoto(foto, "error");
+                            continue;
+                        }
                         progresoFotos.set(foto, registro);
                     }
-                    if (registro.resultado) continue;
+                    if (registro.resultado) {
+                        actualizarEstadoFoto(foto, registro.resultado);
+                        continue;
+                    }
 
+                    actualizarEstadoFoto(foto, "subiendo");
                     mensaje.textContent =
                         `Registrando foto ${i + 1} de ${fotosSeleccionadas.length}...`;
                     try {
                         registro.resultado = await confirmarFoto(registro);
                         delete registro.uploadIntentId;
+                        actualizarEstadoFoto(foto, registro.resultado);
                     } catch (error) {
+                        actualizarEstadoFoto(foto, "error");
                         const permitirRetry = error.retryable === true &&
                             registro.reintentos < MAX_REINTENTOS_CONFIRMACION;
                         confirmacionPendiente = permitirRetry ? registro : null;
@@ -764,6 +957,7 @@ button,
                 const resultados = Array.from(progresoFotos.values());
                 const subidas = resultados.filter(r => r.resultado === "subida").length;
                 const duplicadas = resultados.filter(r => r.resultado === "duplicada").length;
+                const errores = resultados.filter(r => r.resultado === "error").length;
                 loteDetenido = true;
 
                 if (subidas > 0 && duplicadas > 0) {
@@ -782,6 +976,16 @@ button,
                     mensaje.textContent =
                         `♻️ Las ${duplicadas} foto(s) ya habían sido compartidas.`;
 
+                } else if (errores > 0) {
+
+                    mensaje.textContent =
+                        `⚠️ ${errores} foto(s) no pudieron subirse.`;
+
+                }
+
+                if (errores > 0 && (subidas > 0 || duplicadas > 0)) {
+                    mensaje.textContent +=
+                        ` ⚠️ ${errores} foto(s) con error.`;
                 }
 
             } catch (error) {
@@ -793,6 +997,7 @@ button,
 
             } finally {
                 enviando = false;
+                actualizarProgresoGlobal();
                 selector.disabled = confirmacionPendiente !== null;
                 botonSubir.textContent = confirmacionPendiente
                     ? "Reintentar confirmación" : "🚀 Compartir fotos";

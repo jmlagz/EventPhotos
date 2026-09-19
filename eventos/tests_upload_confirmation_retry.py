@@ -33,20 +33,32 @@ function response(spec) {
 }
 
 function makeApp(confirmResponses, options = {}) {
-    function element() {
-        return {
-            disabled: false, textContent: '', style: {}, files: [], listeners: {},
+    function element(tagName = 'div') {
+        const node = {
+            tagName, children: [],
+            className: '', disabled: false, textContent: '', style: {},
+            files: [], listeners: {},
             addEventListener(name, callback) { this.listeners[name] = callback; },
-            appendChild() {},
+            appendChild(child) { this.children.push(child); },
         };
+        let innerHTML = '';
+        Object.defineProperty(node, 'innerHTML', {
+            get() { return innerHTML; },
+            set(value) {
+                innerHTML = value;
+                if (value === '') this.children = [];
+            },
+        });
+        return node;
     }
     const elements = Object.fromEntries(
-        ['selectorFotos', 'galeria', 'contador', 'mensaje', 'botonSubir'].map(id => [id, element()])
+        ['selectorFotos', 'galeria', 'contador', 'mensaje', 'botonSubir', 'progresoGlobal']
+            .map(id => [id, element()])
     );
     const calls = { presign: 0, put: 0, confirmations: [] };
     const context = vm.createContext({
-        document: { getElementById: id => elements[id], createElement: element },
-        URL: { createObjectURL: () => 'blob:fake' },
+        document: { getElementById: id => elements[id], createElement: tag => element(tag) },
+        URL: { createObjectURL: () => 'blob:fake', revokeObjectURL() {} },
         URLSearchParams, console: { log() {}, error() {} },
         fetch: async (url, init) => {
             if (init.method === 'PUT') {
@@ -54,7 +66,10 @@ function makeApp(confirmResponses, options = {}) {
                 assert.equal(init.headers['If-None-Match'], '*');
                 assert.equal(init.headers['Content-Type'], 'image/jpeg');
                 assert.equal(init.body.type, 'image/jpeg');
-                return response({ status: options.putStatus || 200 });
+                const putStatus = options.putStatuses
+                    ? options.putStatuses[calls.put - 1]
+                    : options.putStatus;
+                return response({ status: putStatus || 200 });
             }
             assert.equal(init.method, 'POST');
             assert.ok(init.headers['X-CSRFToken']);
@@ -80,15 +95,30 @@ function makeApp(confirmResponses, options = {}) {
         },
     });
     vm.runInContext(script, context);
-    const file = name => ({ name, type: 'image/jpeg', size: 3, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer });
-    const select = (count = 1) => {
-        elements.selectorFotos.files = Array.from({ length: count }, (_, i) => file(`foto-${i}.jpg`));
+    const file = name => ({
+        name, type: 'image/jpeg', size: 3, lastModified: 1,
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    });
+    const selectNames = names => {
+        elements.selectorFotos.files = names.map(file);
         elements.selectorFotos.listeners.change();
     };
+    const select = (count = 1) => selectNames(
+        Array.from({ length: count }, (_, i) => `foto-${i}.jpg`)
+    );
     select(options.files || 1);
     return {
-        elements, calls, select, context,
+        elements, calls, select, selectNames, context,
         click: () => elements.botonSubir.listeners.click(),
+        remove: index => {
+            const button = elements.galeria.children[index].children.find(
+                child => child.className === 'foto-eliminar'
+            );
+            button.listeners.click();
+        },
+        status: index => elements.galeria.children[index].children.find(
+            child => child.className.startsWith('foto-estado')
+        ).textContent,
         message: () => elements.mensaje.textContent,
         retry: () => !elements.botonSubir.disabled && elements.botonSubir.textContent === 'Reintentar confirmación',
     };
@@ -192,8 +222,60 @@ async function main() {
         await app.click();
         assert.equal(app.retry(), false);
         assert.equal(app.calls.confirmations.length, 0);
-        assert.equal(vm.runInContext('progresoFotos.size', app.context), 0);
+        assert.equal(vm.runInContext('progresoFotos.size', app.context), 1);
+        assert.equal(app.status(0), '⚠ Error');
         assert.ok(!app.message().includes('R2'));
+    } else if (scenario === 'selection_remove') {
+        const app = makeApp([success, success], { files: 3 });
+        assert.equal(app.elements.galeria.children.length, 3);
+        assert.equal(app.elements.contador.textContent, '3 de 20 fotos seleccionadas');
+        assert.deepEqual([app.status(0), app.status(1), app.status(2)], [
+            'Pendiente', 'Pendiente', 'Pendiente',
+        ]);
+        app.remove(1);
+        assert.equal(app.elements.galeria.children.length, 2);
+        assert.equal(app.elements.contador.textContent, '2 de 20 fotos seleccionadas');
+        await app.click();
+        assert.deepEqual(app.calls, { presign: 2, put: 2, confirmations: [ID, ID2] });
+    } else if (scenario === 'remove_all') {
+        const app = makeApp([], { files: 2 });
+        app.remove(1);
+        app.remove(0);
+        assert.equal(app.elements.galeria.children.length, 0);
+        assert.equal(app.elements.contador.textContent, '0 de 20 fotos seleccionadas');
+        assert.equal(app.elements.botonSubir.disabled, true);
+        await app.click();
+        assert.deepEqual(app.calls, { presign: 0, put: 0, confirmations: [] });
+    } else if (scenario === 'max_and_dedupe') {
+        const app = makeApp([], { files: 10 });
+        app.selectNames(Array.from({ length: 20 }, (_, i) => `foto-${i + 5}.jpg`));
+        assert.equal(app.elements.galeria.children.length, 20);
+        assert.equal(app.elements.contador.textContent, '20 de 20 fotos seleccionadas');
+        assert.equal(app.elements.botonSubir.disabled, false);
+        assert.equal(app.message(), 'Puedes seleccionar un máximo de 20 fotos.');
+    } else if (scenario === 'visual_states') {
+        let release;
+        const confirmation = new Promise(resolve => { release = resolve; });
+        const app = makeApp([() => confirmation]);
+        assert.equal(app.status(0), 'Pendiente');
+        const uploading = app.click();
+        assert.equal(app.status(0), 'Subiendo…');
+        release(success);
+        await uploading;
+        assert.equal(app.status(0), '✓ Subida');
+        assert.equal(app.elements.progresoGlobal.textContent, '1 de 1 procesadas');
+    } else if (scenario === 'duplicate_state') {
+        const app = makeApp([], { presignDuplicate: true });
+        await app.click();
+        assert.equal(app.status(0), '♻ Ya existía');
+        assert.equal(app.message(), '♻️ Las 1 foto(s) ya habían sido compartidas.');
+    } else if (scenario === 'error_continues') {
+        const app = makeApp([success], { files: 2, putStatuses: [403, 200] });
+        await app.click();
+        assert.deepEqual(app.calls, { presign: 2, put: 2, confirmations: [ID2] });
+        assert.equal(app.status(0), '⚠ Error');
+        assert.equal(app.status(1), '✓ Subida');
+        assert.equal(app.message(), '✅ 1 foto(s) subida(s) correctamente. ⚠️ 1 foto(s) con error.');
     } else if (scenario === 'page_lifetime') {
         const app = makeApp([{ status: 503, body: {} }]);
         await app.click();
@@ -270,3 +352,21 @@ class UploadConfirmationRetryFrontendTests(SimpleTestCase):
 
     def test_context_is_only_in_page_memory(self):
         self.run_scenario("page_lifetime")
+
+    def test_selection_previews_removal_and_removed_file_is_not_uploaded(self):
+        self.run_scenario("selection_remove")
+
+    def test_removing_all_photos_disables_submit(self):
+        self.run_scenario("remove_all")
+
+    def test_reselection_deduplicates_and_keeps_twenty_photo_limit(self):
+        self.run_scenario("max_and_dedupe")
+
+    def test_per_photo_state_moves_from_pending_to_uploading_to_uploaded(self):
+        self.run_scenario("visual_states")
+
+    def test_duplicate_has_distinct_visual_state(self):
+        self.run_scenario("duplicate_state")
+
+    def test_one_photo_error_does_not_stop_remaining_photos(self):
+        self.run_scenario("error_continues")
