@@ -125,6 +125,13 @@ def obtener_uploader_hash(request):
     ).hexdigest()
 
 
+def _usuario_administra_evento(request, evento):
+    return request.user.is_authenticated and (
+        request.user.is_superuser
+        or evento.anfitriones.filter(pk=request.user.pk).exists()
+    )
+
+
 EXTENSION_POR_MIME_SUBIDA = {
     "image/jpeg": "jpg",
     "image/png": "png",
@@ -773,6 +780,7 @@ def mesa_publica(request, slug, token):
         Evento,
         slug=slug,
         estado__in=[
+            Evento.Estado.DRAFT,
             Evento.Estado.ACTIVE,
             Evento.Estado.CLOSED,
         ],
@@ -784,6 +792,22 @@ def mesa_publica(request, slug, token):
         token=token,
         activa=True,
     )
+
+    if evento.estado == Evento.Estado.DRAFT:
+        dashboard_url = None
+        if _usuario_administra_evento(request, evento):
+            dashboard_url = reverse(
+                "dashboard_evento",
+                args=[evento.slug],
+            )
+
+        return render(
+            request,
+            "eventos/evento_no_abierto.html",
+            {
+                "dashboard_url": dashboard_url,
+            },
+        )
 
     # Evento cerrado:
     # no permite iniciar ni continuar el flujo de subida.
@@ -2209,10 +2233,7 @@ def _queryset_fotos_album(evento, cursor=None):
 
 
 def _puede_moderar_album(request, evento):
-    return request.user.is_authenticated and (
-        request.user.is_superuser
-        or evento.anfitriones.filter(pk=request.user.pk).exists()
-    )
+    return _usuario_administra_evento(request, evento)
 
 
 def _serializar_lote_album(
