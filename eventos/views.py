@@ -110,6 +110,7 @@ from .services.event_configuration import (
 )
 from .services.event_self_service import (
     LimiteEventosAutoservicioAlcanzado,
+    asegurar_mesa_inicial_autoservicio,
     crear_evento_autoservicio,
 )
 
@@ -3536,6 +3537,8 @@ def configurar_mesas(request, slug):
         request,
         slug,
     )
+
+    asegurar_mesa_inicial_autoservicio(evento)
 
     if request.method == "POST":
 

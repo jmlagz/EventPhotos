@@ -11,20 +11,41 @@
     <div>
 
         <a
-            href="{% url 'mesas_dashboard' slug=evento.slug %}"
-            class="back-link"
+            href="{% url 'dashboard_evento' slug=evento.slug %}"
+            class="button button-secondary dashboard-back-button"
         >
-            ← Volver a mesas
+            ← Volver al dashboard del evento
         </a>
 
         <h1 class="page-title">
-            ⚙️ Configurar mesas
+            Configura los accesos de tu evento
         </h1>
 
         <p class="page-subtitle">
             {{ evento.nombre }}
         </p>
 
+    </div>
+
+</div>
+
+
+<div class="info-card access-info-card">
+
+    <div class="info-icon">
+        🔑
+    </div>
+
+    <div>
+        <h2>
+            Tu evento necesita al menos un acceso
+        </h2>
+
+        <p>
+            Tu evento necesita al menos un acceso para que los invitados puedan compartir sus fotos.
+            Si no utilizarás mesas numeradas, puedes dejar una sola mesa y usar su QR como acceso general.
+            Si tendrás varias mesas, agrega tantas como necesites.
+        </p>
     </div>
 
 </div>
@@ -141,16 +162,8 @@
         margin-bottom: 28px;
     }
 
-    .back-link {
-        display: inline-block;
-        margin-bottom: 14px;
-        color: #667085;
-        text-decoration: none;
-        font-size: 14px;
-    }
-
-    .back-link:hover {
-        text-decoration: underline;
+    .dashboard-back-button {
+        margin-bottom: 16px;
     }
 
     .page-title {
@@ -300,6 +313,11 @@
         border: 1px solid #dfe3ff;
         border-radius: 14px;
         padding: 20px;
+    }
+
+    .access-info-card {
+        margin-top: 0;
+        margin-bottom: 20px;
     }
 
     .info-icon {
