@@ -2,6 +2,7 @@ import hashlib
 from datetime import date, timedelta
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -69,6 +70,18 @@ class AlbumPublicoA1Tests(TestCase):
             "album_publico_fotos",
             args=[(evento or self.evento).slug],
         )
+
+    def delete_url(self, foto, evento=None):
+        return reverse(
+            "eliminar_foto",
+            args=[(evento or self.evento).slug, foto.id],
+        )
+
+    def set_uploader(self, client, token):
+        session = client.session
+        session["uploader_token"] = token
+        session.save()
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     @patch("eventos.views.generar_url_lectura", side_effect=_signed_url)
     def test_active_closed_and_legacy_albums_are_visible(self, _sign):
@@ -160,7 +173,45 @@ class AlbumPublicoA1Tests(TestCase):
                 self.assertEqual(len(response.context["fotos"]), expected)
                 self.assertEqual(response.context["total_fotos"], amount)
                 self.assertEqual(response.context["album_has_more"], amount > 30)
+                self.assertEqual(
+                    response.context["album_next_cursor"] is not None,
+                    amount > 30,
+                )
+                if amount > 30:
+                    self.assertContains(response, 'id="cargarMasContenedor"')
+                    self.assertContains(response, 'id="cargarMas"')
+                else:
+                    self.assertNotContains(response, 'id="cargarMasContenedor"')
+                    self.assertNotContains(response, 'id="cargarMas"')
                 self.assertEqual(sign.call_count, expected)
+
+    @patch("eventos.views.generar_url_lectura", side_effect=_signed_url)
+    def test_load_more_stops_at_last_page_and_has_missing_cursor_defense(
+        self,
+        _sign,
+    ):
+        self.create_photos(31)
+        initial = self.client.get(self.album_url())
+        cursor = initial.context["album_next_cursor"]
+
+        self.assertTrue(cursor)
+        self.assertContains(initial, 'id="cargarMasContenedor"')
+        self.assertContains(
+            initial,
+            "const nextCursor = cargarMas.dataset.nextCursor;",
+        )
+        self.assertContains(initial, "if (!nextCursor) {")
+        self.assertContains(
+            initial,
+            'cargarMasContenedor.style.display = "none";',
+        )
+
+        last_page = self.client.get(self.pages_url(), {"cursor": cursor})
+
+        self.assertEqual(last_page.status_code, 200)
+        self.assertEqual(len(last_page.json()["photos"]), 1)
+        self.assertFalse(last_page.json()["has_more"])
+        self.assertIsNone(last_page.json()["next_cursor"])
 
     @patch("eventos.views.generar_url_lectura", side_effect=_signed_url)
     def test_cursor_pages_have_no_duplicates_or_omissions(self, _sign):
@@ -207,6 +258,7 @@ class AlbumPublicoA1Tests(TestCase):
     def test_missing_or_invalid_cursor_has_stable_400_contract(self):
         for query in (
             {},
+            {"cursor": ""},
             {"cursor": "datos-no-firmados"},
             {"cursor": "x" * 513},
         ):
@@ -329,13 +381,118 @@ class AlbumPublicoA1Tests(TestCase):
         self.assertNotContains(response, self.album_url())
         self.assertNotContains(response, "Ver álbum")
 
+    @patch("eventos.views.generar_url_lectura", side_effect=_signed_url)
+    def test_album_can_delete_matches_uploader_host_and_superuser_rules(
+        self,
+        _sign,
+    ):
+        uploader_token = "token-del-uploader-original"
+        uploader_hash = hashlib.sha256(
+            uploader_token.encode("utf-8")
+        ).hexdigest()
+        self.create_photo(index=1, uploader_hash=uploader_hash)
+
+        host = User.objects.create_user("host-album@example.com")
+        self.evento.anfitriones.add(host)
+        superuser = User.objects.create_superuser(
+            "admin-album@example.com",
+            "admin-album@example.com",
+            "password",
+        )
+        other_host = User.objects.create_user("otro-host-album@example.com")
+        other_event = self.create_evento(nombre="Evento del otro anfitrión")
+        other_event.anfitriones.add(other_host)
+
+        uploader = Client()
+        self.set_uploader(uploader, uploader_token)
+        host_client = Client()
+        host_client.force_login(host)
+        superuser_client = Client()
+        superuser_client.force_login(superuser)
+        other_host_client = Client()
+        other_host_client.force_login(other_host)
+
+        for label, client, expected in (
+            ("uploader", uploader, True),
+            ("event_host", host_client, True),
+            ("superuser", superuser_client, True),
+            ("other_event_host", other_host_client, False),
+            ("anonymous", Client(), False),
+        ):
+            with self.subTest(actor=label):
+                response = client.get(self.album_url())
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    response.context["fotos"][0]["can_delete"],
+                    expected,
+                )
+
     @patch("eventos.views.get_r2_client")
-    def test_delete_still_requires_matching_uploader_hash(self, get_r2):
+    def test_uploader_can_delete_own_photo(self, get_r2):
+        uploader_hash = self.set_uploader(
+            self.client,
+            "token-del-uploader-original",
+        )
+        foto = self.create_photo(index=1, uploader_hash=uploader_hash)
+
+        response = self.client.post(self.delete_url(foto))
+
+        self.assertEqual(response.status_code, 200)
+        get_r2.return_value.delete_object.assert_called_once()
+        foto.refresh_from_db()
+        self.assertIsNotNone(foto.eliminada_at)
+
+    @patch("eventos.views.get_r2_client")
+    def test_event_host_can_delete_other_uploader_photo(self, get_r2):
+        host = User.objects.create_user("host-delete@example.com")
+        self.evento.anfitriones.add(host)
+        self.client.force_login(host)
+        foto = self.create_photo(index=1)
+
+        response = self.client.post(self.delete_url(foto))
+
+        self.assertEqual(response.status_code, 200)
+        get_r2.return_value.delete_object.assert_called_once()
+        foto.refresh_from_db()
+        self.assertIsNotNone(foto.eliminada_at)
+
+    @patch("eventos.views.get_r2_client")
+    def test_superuser_can_delete_any_photo_from_event(self, get_r2):
+        superuser = User.objects.create_superuser(
+            "admin-delete@example.com",
+            "admin-delete@example.com",
+            "password",
+        )
+        self.client.force_login(superuser)
+        foto = self.create_photo(index=1)
+
+        response = self.client.post(self.delete_url(foto))
+
+        self.assertEqual(response.status_code, 200)
+        get_r2.return_value.delete_object.assert_called_once()
+        foto.refresh_from_db()
+        self.assertIsNotNone(foto.eliminada_at)
+
+    @patch("eventos.views.get_r2_client")
+    def test_other_event_host_cannot_delete_photo(self, get_r2):
+        other_host = User.objects.create_user("other-host-delete@example.com")
+        other_event = self.create_evento(nombre="Otro evento para eliminar")
+        other_event.anfitriones.add(other_host)
+        self.client.force_login(other_host)
+        foto = self.create_photo(index=1)
+
+        response = self.client.post(self.delete_url(foto))
+
+        self.assertEqual(response.status_code, 403)
+        get_r2.assert_not_called()
+        foto.refresh_from_db()
+        self.assertIsNone(foto.eliminada_at)
+
+    @patch("eventos.views.get_r2_client")
+    def test_anonymous_other_uploader_cannot_delete_photo(self, get_r2):
         foto = self.create_photo(index=1, uploader_hash="hash-de-otro-navegador")
 
-        response = self.client.post(
-            reverse("eliminar_foto", args=[self.evento.slug, foto.id])
-        )
+        response = self.client.post(self.delete_url(foto))
 
         self.assertEqual(response.status_code, 403)
         get_r2.assert_not_called()

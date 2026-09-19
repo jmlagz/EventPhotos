@@ -1966,9 +1966,13 @@ def eliminar_foto(request, slug, foto_id):
         eliminada_at__isnull=True,
     )
 
-    uploader_hash = obtener_uploader_hash(request)
+    puede_moderar = _puede_moderar_album(request, evento)
+    es_uploader = (
+        not puede_moderar
+        and foto.uploader_hash == obtener_uploader_hash(request)
+    )
 
-    if foto.uploader_hash != uploader_hash:
+    if not puede_moderar and not es_uploader:
         return JsonResponse(
             {
                 "error": "No tienes permiso para eliminar esta foto."
@@ -2204,7 +2208,19 @@ def _queryset_fotos_album(evento, cursor=None):
     return fotos
 
 
-def _serializar_lote_album(evento, fotos, uploader_hash):
+def _puede_moderar_album(request, evento):
+    return request.user.is_authenticated and (
+        request.user.is_superuser
+        or evento.anfitriones.filter(pk=request.user.pk).exists()
+    )
+
+
+def _serializar_lote_album(
+    evento,
+    fotos,
+    uploader_hash,
+    puede_moderar=False,
+):
     serializadas = []
     for foto in fotos:
         try:
@@ -2226,20 +2242,32 @@ def _serializar_lote_album(evento, fotos, uploader_hash):
             {
                 "id": foto.id,
                 "url": url,
-                "can_delete": foto.uploader_hash == uploader_hash,
+                "can_delete": (
+                    puede_moderar or foto.uploader_hash == uploader_hash
+                ),
             }
         )
 
     return serializadas
 
 
-def _obtener_lote_album(evento, uploader_hash, cursor=None):
+def _obtener_lote_album(
+    evento,
+    uploader_hash,
+    cursor=None,
+    puede_moderar=False,
+):
     candidatas = list(
         _queryset_fotos_album(evento, cursor)[: ALBUM_PHOTO_PAGE_SIZE + 1]
     )
     has_more = len(candidatas) > ALBUM_PHOTO_PAGE_SIZE
     lote = candidatas[:ALBUM_PHOTO_PAGE_SIZE]
-    fotos = _serializar_lote_album(evento, lote, uploader_hash)
+    fotos = _serializar_lote_album(
+        evento,
+        lote,
+        uploader_hash,
+        puede_moderar=puede_moderar,
+    )
     next_cursor = (
         _codificar_cursor_album(evento, lote[-1]) if has_more and lote else None
     )
@@ -2259,9 +2287,11 @@ def album_publico(request, slug):
     fotos_queryset = _queryset_fotos_album(evento)
     total_fotos = fotos_queryset.count()
     uploader_hash = obtener_uploader_hash(request)
+    puede_moderar = _puede_moderar_album(request, evento)
     fotos, has_more, next_cursor = _obtener_lote_album(
         evento,
         uploader_hash,
+        puede_moderar=puede_moderar,
     )
 
     response = render(
@@ -2309,10 +2339,12 @@ def album_publico_fotos(request, slug):
         )
 
     uploader_hash = obtener_uploader_hash(request)
+    puede_moderar = _puede_moderar_album(request, evento)
     fotos, has_more, next_cursor = _obtener_lote_album(
         evento,
         uploader_hash,
         cursor,
+        puede_moderar=puede_moderar,
     )
 
     return _respuesta_album_sin_cache(

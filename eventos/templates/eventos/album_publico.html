@@ -645,11 +645,8 @@
 
             </div>
 
-            <div
-                id="cargarMasContenedor"
-                class="cargar-mas-contenedor"
-                {% if not album_has_more %}hidden{% endif %}
-            >
+            {% if album_has_more %}
+            <div id="cargarMasContenedor" class="cargar-mas-contenedor">
                 <button
                     id="cargarMas"
                     class="cargar-mas"
@@ -660,6 +657,7 @@
                     Cargar más
                 </button>
             </div>
+            {% endif %}
 
         </main>
 
@@ -1022,6 +1020,17 @@
         const cargarMas =
             document.getElementById("cargarMas");
 
+        function ocultarCargarMas() {
+            if (!cargarMasContenedor) {
+                return;
+            }
+
+            cargarMasContenedor.hidden = true;
+            cargarMasContenedor.style.display = "none";
+            cargarMas.disabled = true;
+            cargarMas.dataset.nextCursor = "";
+        }
+
         function crearTarjetaFoto(item) {
             const contenedor = document.createElement("div");
             contenedor.className = "foto";
@@ -1093,12 +1102,18 @@
 
         if (cargarMas) {
             cargarMas.addEventListener("click", async function () {
+                const nextCursor = cargarMas.dataset.nextCursor;
+                if (!nextCursor) {
+                    ocultarCargarMas();
+                    return;
+                }
+
                 cargarMas.disabled = true;
                 cargarMas.textContent = "Cargando…";
 
                 try {
                     const url = new URL(cargarMas.dataset.endpoint, window.location.origin);
-                    url.searchParams.set("cursor", cargarMas.dataset.nextCursor);
+                    url.searchParams.set("cursor", nextCursor);
                     const respuesta = await fetch(url, {
                         headers: {"Accept": "application/json"},
                     });
@@ -1110,9 +1125,10 @@
                     }
 
                     resultado.photos.forEach(crearTarjetaFoto);
-                    cargarMas.dataset.nextCursor = resultado.next_cursor || "";
-                    if (!resultado.has_more) {
-                        cargarMasContenedor.hidden = true;
+                    if (resultado.has_more && resultado.next_cursor) {
+                        cargarMas.dataset.nextCursor = resultado.next_cursor;
+                    } else {
+                        ocultarCargarMas();
                     }
                 } catch (error) {
                     console.error(error);
